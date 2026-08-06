@@ -64,6 +64,19 @@ Im Google Sheet:
 
 Änderungen sind sofort wirksam – kein erneutes Veröffentlichen nötig.
 
+## Kontrolle: Wer hat eingereicht?
+
+Menü **Wochenrapport → Kontrolle aktualisieren** baut den Reiter `Kontrolle`:
+alle Mitarbeiter untereinander, die Kalenderwochen (KW) nebeneinander, in den
+Zellen die eingereichten Stunden.
+
+- 🟩 Grün = Woche vollständig (≥ Sollzeit 40 h)
+- 🟨 Gelb = eingereicht, aber unter 40 h (prüfen)
+- 🟥 Rot = nichts eingereicht
+
+Damit siehst du auf einen Blick, wem du nachlaufen musst, bevor du den
+Messerli-Export machst.
+
 ## Export nach Messerli
 
 Das Importformat wurde mit dem Messerli-Support geklärt (Ticket BUS-SUP-27446,

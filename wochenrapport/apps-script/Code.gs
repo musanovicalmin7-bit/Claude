@@ -51,6 +51,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Wochenrapport')
     .addItem('Reiter einrichten', 'ensureSheets_')
+    .addItem('Kontrolle aktualisieren', 'updateKontrolle')
     .addItem('Messerli-Export erstellen …', 'exportMesserli')
     .addToUi();
 }
@@ -162,6 +163,110 @@ function submitRapport(payload) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/* ================= Kontroll-Übersicht ================= */
+
+var SHEET_KONTROLLE = 'Kontrolle';
+
+/**
+ * Baut den Reiter "Kontrolle": Zeilen = alle Mitarbeiter, Spalten = Kalender-
+ * wochen (von der ersten eingereichten Woche bis zur aktuellen). Zellwert =
+ * eingereichte Stunden. Grün >= Sollzeit, Gelb = teilweise, Rot = fehlt.
+ */
+function updateKontrolle() {
+  ensureSheets_();
+  var ss = ss_();
+
+  var employees = [];
+  var mit = ss.getSheetByName(SHEET_MITARBEITER).getDataRange().getValues();
+  for (var i = 1; i < mit.length; i++) {
+    var nr = trim_(mit[i][0]), name = trim_(mit[i][1]);
+    if (name) employees.push({ nr: nr, name: name });
+  }
+  if (!employees.length) {
+    SpreadsheetApp.getUi().alert('Der Reiter "Mitarbeiter" ist leer – bitte zuerst die Namen eintragen.');
+    return;
+  }
+
+  // Stunden pro Mitarbeiter und Woche (Montag) aufsummieren
+  var data = ss.getSheetByName(SHEET_RAPPORTE).getDataRange().getValues();
+  var byWeek = {};                       // nameLower -> { mondayIso -> stunden }
+  var minMonday = null;
+  for (var r = 1; r < data.length; r++) {
+    var name = trim_(data[r][2]);
+    var monday = parseAnyDate_(data[r][3]) || parseAnyDate_(data[r][5]);
+    var stunden = Number(data[r][7]);
+    if (!name || !monday || !(stunden > 0)) continue;
+    monday = mondayOf_(monday);
+    var iso = isoDate_(monday);
+    var key = name.toLowerCase();
+    if (!byWeek[key]) byWeek[key] = {};
+    byWeek[key][iso] = (byWeek[key][iso] || 0) + stunden;
+    if (!minMonday || monday < minMonday) minMonday = monday;
+  }
+
+  var thisMonday = mondayOf_(new Date());
+  if (!minMonday) minMonday = thisMonday;
+  var mondays = [];
+  for (var d = new Date(minMonday); d <= thisMonday; d.setDate(d.getDate() + 7)) {
+    mondays.push(new Date(d));
+  }
+
+  // Tabelle aufbauen
+  var header = ['Nr.', 'Mitarbeiter'];
+  mondays.forEach(function (m) {
+    header.push('KW ' + isoWeek_(m) + '\n' + ('0' + m.getDate()).slice(-2) + '.' + ('0' + (m.getMonth() + 1)).slice(-2) + '.');
+  });
+  var rows = [header], colors = [header.map(function () { return '#EDF3F8'; })];
+  employees.forEach(function (e) {
+    var row = [e.nr, e.name], color = ['', ''];
+    var wk = byWeek[e.name.toLowerCase()] || {};
+    mondays.forEach(function (m) {
+      var h = wk[isoDate_(m)] || 0;
+      row.push(h ? h : '');
+      color.push(h >= SOLL_STUNDEN ? '#D9EAD3' : (h > 0 ? '#FFF2CC' : '#F4CCCC'));
+    });
+    rows.push(row); colors.push(color);
+  });
+
+  var sheet = ss.getSheetByName(SHEET_KONTROLLE) || ss.insertSheet(SHEET_KONTROLLE);
+  sheet.clear();
+  sheet.getRange(1, 1, rows.length, header.length).setValues(rows).setBackgrounds(colors);
+  sheet.getRange(1, 1, 1, header.length).setFontWeight('bold').setWrap(true);
+  sheet.setFrozenRows(1); sheet.setFrozenColumns(2);
+  sheet.autoResizeColumns(1, 2);
+  for (var c = 3; c <= header.length; c++) sheet.setColumnWidth(c, 62);
+  ss.setActiveSheet(sheet);
+}
+
+/** ISO-Kalenderwoche (KW) einer Date. */
+function isoWeek_(date) {
+  var d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  var dayNum = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - dayNum + 3);
+  var firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  var firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
+  return 1 + Math.round((d - firstThursday) / (7 * 24 * 3600 * 1000));
+}
+
+function mondayOf_(d) {
+  var x = new Date(d); var day = (x.getDay() + 6) % 7;
+  x.setDate(x.getDate() - day); x.setHours(12, 0, 0, 0); return x;
+}
+
+function isoDate_(d) {
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+}
+
+/** Akzeptiert "2026-08-03", "03.08.2026" oder ein Date-Objekt. */
+function parseAnyDate_(v) {
+  if (v instanceof Date && !isNaN(v.getTime())) return v;
+  var s = String(v || '').trim();
+  var iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]), 12, 0, 0);
+  return parseChDate_(s);
 }
 
 /* ================= Messerli-Export ================= */
