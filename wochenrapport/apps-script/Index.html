@@ -6,81 +6,114 @@
 <style>
   :root{
     --paper:#F4F6F8; --card:#FFFFFF; --ink:#1C2430; --ink-soft:#5A6676;
-    --line:#D6DCE2; --line-soft:#E7EBEF; --blau:#2E5E8C; --blau-tint:#EDF3F8;
-    --ok:#2E7D51; --warn:#B3541E;
+    --line:#D6DCE2; --blau:#2E5E8C; --blau-tint:#EDF3F8; --ok:#2E7D51; --warn:#B3541E;
   }
-  *{ box-sizing:border-box; }
-  body{ margin:0; background:var(--paper); color:var(--ink);
-    font:15px/1.5 "Helvetica Neue",Helvetica,Arial,system-ui,sans-serif; }
-  .wrap{ max-width:1080px; margin:0 auto; padding:22px 18px 80px; }
-  header.top{ display:flex; align-items:baseline; justify-content:space-between; gap:14px;
-    flex-wrap:wrap; border-bottom:3px solid var(--blau); padding-bottom:12px; margin-bottom:18px; }
-  h1{ margin:0; font-size:22px; font-weight:700; letter-spacing:-.01em; }
-  .sub{ color:var(--ink-soft); font-size:13px; margin-top:2px; }
-  .badge{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--blau);
-    border:1px solid var(--blau); border-radius:3px; padding:3px 8px; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; }
+  body{ background:var(--paper); color:var(--ink);
+    font:17px/1.45 "Helvetica Neue",Helvetica,Arial,system-ui,sans-serif; }
+  .wrap{ max-width:520px; margin:0 auto; padding:16px 14px 120px; }
 
-  .toolbar{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
-  .field label{ display:block; font-size:11px; text-transform:uppercase; letter-spacing:.07em;
-    color:var(--ink-soft); margin-bottom:4px; }
-  .field input,.field select{ padding:8px 10px; font:inherit; border:1px solid var(--line);
-    border-radius:4px; background:var(--card); color:var(--ink); min-width:150px; }
-  .field.grow select{ min-width:230px; }
-  input:focus,select:focus,button:focus-visible{ outline:2px solid var(--blau); outline-offset:1px; }
+  header.top{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding-bottom:10px; border-bottom:3px solid var(--blau); margin-bottom:14px; }
+  h1{ margin:0; font-size:20px; font-weight:700; }
+  .who{ font-size:14px; color:var(--ink-soft); text-align:right; }
+  .who b{ color:var(--ink); display:block; font-size:15px; }
+  .who button{ border:0; background:none; color:var(--blau); font:inherit; font-size:13px;
+    text-decoration:underline; cursor:pointer; padding:2px 0; }
 
-  .tablecard{ background:var(--card); border:1px solid var(--line); border-radius:6px; overflow-x:auto;
-    box-shadow:0 1px 2px rgba(28,36,48,.06); }
-  table{ border-collapse:collapse; width:100%; min-width:820px; }
-  th,td{ border-bottom:1px solid var(--line-soft); padding:0; }
-  th{ font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft);
-    padding:10px 8px; text-align:left; background:var(--blau-tint); border-bottom:1px solid var(--line); }
-  th.day{ text-align:center; width:60px; }
-  th .date{ display:block; font-weight:400; letter-spacing:0; text-transform:none; font-size:10px; }
-  td input{ width:100%; border:0; background:transparent; color:var(--ink); font:inherit; padding:9px 8px; }
-  td.num input,td.total{ text-align:right; font-variant-numeric:tabular-nums; }
-  td.total{ padding:9px 10px; font-weight:600; color:var(--blau); font-variant-numeric:tabular-nums; text-align:right; }
-  td.auftrag{ min-width:230px; }
-  td.auftrag input:focus{ outline-offset:-2px; }
-  td.rm{ width:34px; text-align:center; }
-  td.rm button{ border:0; background:none; color:var(--ink-soft); cursor:pointer; font-size:15px; padding:6px 9px; }
-  td.rm button:hover{ color:var(--warn); }
-  tbody tr:hover{ background:var(--blau-tint); }
-  tfoot td{ padding:10px 8px; font-weight:700; border-top:2px solid var(--blau);
-    font-variant-numeric:tabular-nums; text-align:right; }
-  tfoot td:first-child{ text-align:left; text-transform:uppercase; font-size:11px; letter-spacing:.06em; color:var(--ink-soft); }
-
-  .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; align-items:center; }
-  button.btn{ font:inherit; font-weight:600; padding:10px 18px; border-radius:4px;
-    border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
-  button.btn.primary{ background:var(--blau); border-color:var(--blau); color:#fff; }
-  button.btn:hover{ border-color:var(--blau); }
-  button.btn[disabled]{ opacity:.5; cursor:not-allowed; }
-
-  .summary{ display:flex; gap:26px; flex-wrap:wrap; margin-top:22px; padding:14px 18px;
-    background:var(--blau-tint); border:1px solid var(--line); border-radius:6px; }
-  .stat .k{ font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-soft); }
-  .stat .v{ font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; }
-  .stat .v.ok{ color:var(--ok); } .stat .v.warn{ color:var(--warn); }
-
-  .msg{ margin-top:16px; padding:12px 16px; border-radius:6px; font-size:14px; display:none; }
+  .msg{ margin:0 0 14px; padding:12px 14px; border-radius:8px; font-size:15px; display:none; }
   .msg.show{ display:block; }
-  .msg.ok{ background:#E7F3EC; border:1px solid var(--ok); color:#1c5738; }
   .msg.err{ background:#FBECE4; border:1px solid var(--warn); color:#7a3915; }
   .msg.info{ background:var(--blau-tint); border:1px solid var(--line); color:var(--ink-soft); }
 
-  .note{ color:var(--ink-soft); font-size:13px; margin-top:20px; max-width:66ch; }
+  /* ---- Schritt 1: Name ---- */
+  #nameScreen h2{ font-size:18px; margin:6px 0 12px; }
+  #nameSearch{ width:100%; padding:14px; font:inherit; font-size:17px; border:1px solid var(--line);
+    border-radius:10px; background:var(--card); }
+  #nameList{ margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+  .namebtn{ text-align:left; font:inherit; font-size:17px; padding:14px 16px; border:1px solid var(--line);
+    border-radius:10px; background:var(--card); color:var(--ink); cursor:pointer; }
+  .namebtn:active{ background:var(--blau-tint); }
 
-  .acbox{ position:absolute; z-index:50; background:var(--card); border:1px solid var(--line); border-radius:6px;
-    box-shadow:0 8px 24px rgba(0,0,0,.18); max-height:260px; overflow:auto; display:none; }
+  /* ---- Woche ---- */
+  .block-label{ font-size:13px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--ink-soft); margin:16px 0 8px; }
+  .weeks{ display:flex; gap:8px; }
+  .week{ flex:1; padding:12px 8px; border:1px solid var(--line); border-radius:10px;
+    background:var(--card); text-align:center; font:inherit; cursor:pointer; color:var(--ink); }
+  .week .wt{ font-size:15px; font-weight:700; display:block; }
+  .week .wd{ font-size:13px; color:var(--ink-soft); }
+  .week.sel{ border-color:var(--blau); background:var(--blau-tint); box-shadow:inset 0 0 0 1px var(--blau); }
+
+  /* ---- Auftrag-Karten ---- */
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px;
+    margin-bottom:12px; box-shadow:0 1px 2px rgba(28,36,48,.06); position:relative; }
+  .card .del{ position:absolute; top:8px; right:10px; border:0; background:none; color:var(--ink-soft);
+    font-size:18px; cursor:pointer; padding:4px 8px; }
+  .card label{ display:block; font-size:13px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--ink-soft); margin-bottom:6px; }
+  .card input.auftrag{ width:100%; padding:14px; font:inherit; font-size:17px;
+    border:1px solid var(--line); border-radius:10px; background:var(--paper); color:var(--ink); }
+
+  .daysgrid{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-top:12px; }
+  .dbtn{ padding:9px 2px; border:1px solid var(--line); border-radius:10px; background:var(--paper);
+    text-align:center; font:inherit; cursor:pointer; color:var(--ink); }
+  .dbtn .dw{ font-size:12px; color:var(--ink-soft); display:block; }
+  .dbtn .dh{ font-size:14px; font-weight:700; min-height:18px; display:block;
+    font-variant-numeric:tabular-nums; }
+  .dbtn.on{ border-color:var(--blau); background:var(--blau-tint); }
+  .dbtn.on .dw{ color:var(--blau); }
+  .dbtn.editing{ box-shadow:inset 0 0 0 2px var(--blau); }
+
+  .stepper{ display:flex; align-items:center; gap:12px; margin-top:12px; }
+  .stepper button{ width:56px; height:56px; border-radius:12px; border:1px solid var(--line);
+    background:var(--paper); font-size:26px; font-weight:700; color:var(--blau); cursor:pointer; }
+  .stepper button:active{ background:var(--blau-tint); }
+  .stepper .val{ flex:1; text-align:center; font-size:30px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .stepper .val small{ display:block; font-size:12px; font-weight:400; color:var(--ink-soft);
+    text-transform:uppercase; letter-spacing:.06em; }
+  .cardtotal{ margin-top:10px; text-align:right; font-size:14px; color:var(--ink-soft); }
+  .cardtotal b{ color:var(--blau); font-variant-numeric:tabular-nums; }
+
+  .addrow{ width:100%; padding:13px; font:inherit; font-size:16px; border:1px dashed var(--line);
+    border-radius:12px; background:none; color:var(--blau); cursor:pointer; margin-bottom:8px; }
+
+  .weektotal{ margin-top:6px; padding:12px 16px; background:var(--blau-tint); border:1px solid var(--line);
+    border-radius:12px; display:flex; justify-content:space-between; align-items:baseline; font-size:15px; }
+  .weektotal b{ font-size:22px; font-variant-numeric:tabular-nums; color:var(--blau); }
+
+  /* ---- Senden ---- */
+  .sendbar{ position:fixed; left:0; right:0; bottom:0; padding:12px 14px calc(12px + env(safe-area-inset-bottom));
+    background:linear-gradient(transparent, var(--paper) 30%); }
+  .sendbar .inner{ max-width:520px; margin:0 auto; }
+  #send{ width:100%; padding:18px; font:inherit; font-size:19px; font-weight:700; border:0;
+    border-radius:14px; background:var(--ok); color:#fff; cursor:pointer;
+    box-shadow:0 2px 8px rgba(46,125,81,.35); }
+  #send[disabled]{ opacity:.6; }
+
+  /* ---- Erfolg ---- */
+  #doneScreen{ text-align:center; padding:60px 20px; }
+  #doneScreen .check{ width:96px; height:96px; margin:0 auto 18px; border-radius:50%;
+    background:var(--ok); color:#fff; font-size:52px; line-height:96px; }
+  #doneScreen h2{ font-size:22px; margin:0 0 6px; }
+  #doneScreen p{ color:var(--ink-soft); margin:0 0 26px; }
+  #doneScreen button{ font:inherit; font-size:17px; font-weight:600; padding:14px 22px;
+    border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--blau); cursor:pointer; }
+
+  /* ---- Autocomplete ---- */
+  .acbox{ position:absolute; z-index:50; background:var(--card); border:1px solid var(--line);
+    border-radius:10px; box-shadow:0 10px 28px rgba(0,0,0,.2); max-height:270px; overflow:auto; display:none; }
   .acbox.open{ display:block; }
-  .acitem{ display:flex; gap:10px; align-items:baseline; padding:8px 12px; cursor:pointer; font-size:14px; }
-  .acitem .acnr{ font-variant-numeric:tabular-nums; font-weight:600; color:var(--blau); white-space:nowrap; }
-  .acitem .aclabel{ color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .acitem{ display:flex; gap:10px; align-items:baseline; padding:13px 14px; cursor:pointer; font-size:16px;
+    border-bottom:1px solid var(--paper); }
+  .acitem .acnr{ font-variant-numeric:tabular-nums; font-weight:700; color:var(--blau); white-space:nowrap; }
+  .acitem .aclabel{ color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .acitem.active{ background:var(--blau-tint); }
-  .acempty{ padding:10px 12px; color:var(--ink-soft); font-size:13px; }
+  .acempty{ padding:12px 14px; color:var(--ink-soft); font-size:14px; }
 
-  .spinner{ width:16px; height:16px; border:2px solid var(--line); border-top-color:var(--blau);
-    border-radius:50%; display:inline-block; animation:spin .7s linear infinite; }
+  .spinner{ width:18px; height:18px; border:2.5px solid rgba(255,255,255,.4); border-top-color:#fff;
+    border-radius:50%; display:inline-block; vertical-align:-3px; margin-right:8px; animation:spin .7s linear infinite; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
   @media (prefers-reduced-motion:reduce){ .spinner{ animation:none; } }
 </style>
@@ -88,168 +121,174 @@
 <body>
 <div class="wrap">
   <header class="top">
-    <div>
-      <h1>Wochenrapport</h1>
-      <div class="sub">Digitale Zeiterfassung · zentrale Erfassung</div>
-    </div>
-    <span class="badge" id="badge">lädt …</span>
+    <h1>Wochenrapport</h1>
+    <div class="who" id="who" style="display:none"><b id="whoName"></b>
+      <button id="changeName" type="button">Name ändern</button></div>
   </header>
 
-  <div id="loading" class="msg info show">Stammdaten werden geladen …</div>
+  <div id="loading" class="msg info show">Lädt …</div>
+  <div class="msg err" id="err"></div>
 
-  <div id="app" style="display:none">
-    <div class="toolbar">
-      <div class="field grow"><label for="ma">Dein Name</label>
-        <select id="ma"><option value="">– Name wählen –</option></select></div>
-      <div class="field"><label for="von">Woche vom (Montag)</label><input id="von" type="date"></div>
-      <div class="field"><label for="rapnr">Rapport Nr. (optional)</label><input id="rapnr" placeholder="z. B. 2026-29"></div>
-    </div>
+  <!-- Schritt 1: Name (nur beim ersten Mal) -->
+  <section id="nameScreen" style="display:none">
+    <h2>Wer bist du?</h2>
+    <input id="nameSearch" placeholder="Name tippen …" autocomplete="off">
+    <div id="nameList"></div>
+  </section>
 
-    <div class="tablecard">
-      <table id="tbl">
-        <thead><tr>
-          <th>Auftrag Nr. / Absenzgrund</th>
-          <th class="day">Mo<span class="date" id="d0"></span></th>
-          <th class="day">Di<span class="date" id="d1"></span></th>
-          <th class="day">Mi<span class="date" id="d2"></span></th>
-          <th class="day">Do<span class="date" id="d3"></span></th>
-          <th class="day">Fr<span class="date" id="d4"></span></th>
-          <th class="day">Sa<span class="date" id="d5"></span></th>
-          <th class="day">So<span class="date" id="d6"></span></th>
-          <th class="day">Total</th><th></th>
-        </tr></thead>
-        <tbody id="rows"></tbody>
-        <tfoot><tr>
-          <td>Total Stunden</td>
-          <td id="t0"></td><td id="t1"></td><td id="t2"></td><td id="t3"></td>
-          <td id="t4"></td><td id="t5"></td><td id="t6"></td>
-          <td id="tTotal"></td><td></td>
-        </tr></tfoot>
-      </table>
-    </div>
+  <!-- Hauptschirm -->
+  <section id="mainScreen" style="display:none">
+    <div class="block-label">Woche</div>
+    <div class="weeks" id="weeks"></div>
 
-    <div class="actions">
-      <button class="btn" id="addRow">+ Zeile hinzufügen</button>
-      <button class="btn primary" id="submit">Woche absenden</button>
-      <span id="submitState"></span>
-    </div>
+    <div class="block-label">Aufträge dieser Woche</div>
+    <div id="cards"></div>
+    <button class="addrow" id="addCard" type="button">+ weiterer Auftrag</button>
 
-    <div class="summary">
-      <div class="stat"><div class="k">Total Stunden</div><div class="v" id="sumH">0.0</div></div>
-      <div class="stat"><div class="k">Sollzeit</div><div class="v" id="sumSoll">40.0</div></div>
-      <div class="stat"><div class="k">Differenz</div><div class="v" id="sumDiff">−40.0</div></div>
-    </div>
+    <div class="weektotal"><span>Total Woche</span><b id="weekTotal">0 h</b></div>
+  </section>
 
-    <div class="msg" id="msg"></div>
+  <div class="sendbar" id="sendbar" style="display:none"><div class="inner">
+    <button id="send" type="button">Woche abschicken</button>
+  </div></div>
 
-    <p class="note">Deine Eingaben werden als Entwurf auf diesem Gerät zwischengespeichert. Mit „Woche absenden"
-      gehen sie zentral an die Firma. Auftrag-Vorschläge erscheinen, sobald du zu tippen beginnst.</p>
-  </div>
+  <!-- Erfolg -->
+  <section id="doneScreen" style="display:none">
+    <div class="check">✓</div>
+    <h2>Erfasst!</h2>
+    <p id="doneText"></p>
+    <button id="again" type="button">Neue Woche erfassen</button>
+  </section>
 </div>
 
 <script>
-  var DAYS=7, SOLL=40, DKEY="wochenrapport-draft";
-  var ABSENCES=["Büro","Ferien","Krank","Unfall","Feiertag","Schule","Militär/ZS","Weiterbildung"];
-  var PROJECTS=[], NAMES=[];
-  var rowsEl, msgEl;
+  var PROJECTS=[], NAMES=[], ABSENCES=["Ferien","Krank","Unfall","Feiertag","Schule","Militär/ZS","Weiterbildung","Büro"];
+  var KEY_NAME="zeit-name", KEY_DRAFT="zeit-draft-woche";
+  var DW=["Mo","Di","Mi","Do","Fr","Sa","So"];
+  var weekStart=null;                    // ISO des Montags
 
-  /* ---------- helpers ---------- */
   function $(id){ return document.getElementById(id); }
-  function mondayOf(d){ var x=new Date(d); if(isNaN(x)) x=new Date(); var day=(x.getDay()+6)%7;
-    x.setDate(x.getDate()-day); x.setHours(12,0,0,0); return x; }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
   function isoDate(d){ return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
   function chDate(d){ return ("0"+d.getDate()).slice(-2)+"."+("0"+(d.getMonth()+1)).slice(-2)+"."+d.getFullYear(); }
   function chShort(d){ return ("0"+d.getDate()).slice(-2)+"."+("0"+(d.getMonth()+1)).slice(-2)+"."; }
-  function num(v){
-    if(v==null||v==="") return 0;
-    var s=String(v).trim().replace(/[’'\s]/g,"").replace(/,/g,".");
-    var p=s.split("."); if(p.length>2){ var dec=p.pop(); s=p.join("")+"."+dec; }
-    var n=parseFloat(s); if(!isFinite(n)||n<0) return 0; return Math.round(n*100)/100;
-  }
-  function f1(n){ return (Math.round(n*100)/100).toLocaleString("de-CH",{minimumFractionDigits:1,maximumFractionDigits:2}); }
-  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
-    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
-  function emptyRow(){ return { auftrag:"", h:["","","","","","",""] }; }
+  function mondayOf(d){ var x=new Date(d); var day=(x.getDay()+6)%7; x.setDate(x.getDate()-day);
+    x.setHours(12,0,0,0); return x; }
+  function addDays(iso,n){ var d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n); return d; }
+  function fmtH(n){ return String(Math.round(n*10)/10).replace(".",","); }
+  function showErr(t){ var e=$("err"); e.textContent=t; e.classList.add("show");
+    setTimeout(function(){ e.classList.remove("show"); },5000); }
 
-  /* ---------- draft persistence ---------- */
-  function saveDraft(){ try{ localStorage.setItem(DKEY,JSON.stringify(collect())); }catch(e){} }
-  function loadDraft(){ try{ return JSON.parse(localStorage.getItem(DKEY)); }catch(e){ return null; } }
-
-  /* ---------- week dates ---------- */
-  function weekDates(){
-    var start=mondayOf($("von").value?new Date($("von").value+"T12:00:00"):new Date());
-    var out=[]; for(var i=0;i<DAYS;i++){ var d=new Date(start); d.setDate(d.getDate()+i); out.push(d); } return out;
-  }
-  function renderDates(){ var ds=weekDates(); for(var i=0;i<DAYS;i++) $("d"+i).textContent=chShort(ds[i]); }
-
-  /* ---------- name dropdown ---------- */
-  function renderNameSelect(current){
-    var sel=$("ma"); current=(current!=null?current:sel.value)||"";
-    var html='<option value="">– Name wählen –</option>', found=false;
-    NAMES.forEach(function(n){ if(n.name===current) found=true;
-      html+='<option value="'+esc(n.name)+'" data-nr="'+esc(n.nr||"")+'"'+(n.name===current?" selected":"")+">"+esc(n.name)+"</option>"; });
-    if(current&&!found) html+='<option value="'+esc(current)+'" selected>'+esc(current)+"</option>";
-    sel.innerHTML=html;
-  }
-  function selectedNr(){
-    var sel=$("ma"), opt=sel.options[sel.selectedIndex];
-    return (opt&&opt.getAttribute("data-nr"))||"";
-  }
-
-  /* ---------- rows ---------- */
-  function makeRow(r){
-    r=r||emptyRow();
-    var tr=document.createElement("tr");
-    var h='<td class="auftrag"><input data-f="auftrag" autocomplete="off" placeholder="Auftrag Nr. / Absenz"></td>';
-    for(var i=0;i<DAYS;i++) h+='<td class="num"><input data-f="h'+i+'" inputmode="decimal"></td>';
-    h+='<td class="total" data-f="rowtotal">0.0</td>'+
-       '<td class="rm"><button type="button" title="Zeile löschen" aria-label="Zeile löschen">✕</button></td>';
-    tr.innerHTML=h;
-    var af=tr.querySelector("[data-f=auftrag]"); af.value=r.auftrag||"";
-    af.addEventListener("focus",function(){ AC.open(af); });
-    af.addEventListener("input",function(){ AC.open(af); });
-    af.addEventListener("keydown",function(e){
-      if(e.key==="ArrowDown"){ e.preventDefault(); AC.move(1); }
-      else if(e.key==="ArrowUp"){ e.preventDefault(); AC.move(-1); }
-      else if(e.key==="Enter"){ if(AC.hasActive()){ e.preventDefault(); AC.choose(); } }
-      else if(e.key==="Escape"){ AC.close(); }
+  /* ---------- Name ---------- */
+  function savedName(){ try{ return JSON.parse(localStorage.getItem(KEY_NAME)); }catch(e){ return null; } }
+  function renderNameList(q){
+    q=(q||"").toLowerCase();
+    var html="";
+    NAMES.forEach(function(n,i){
+      if(!q||n.name.toLowerCase().indexOf(q)>=0) html+='<button class="namebtn" data-i="'+i+'" type="button">'+esc(n.name)+"</button>";
     });
-    af.addEventListener("blur",function(){ setTimeout(AC.close,150); });
-    var hv=(r.h||[]); for(var j=0;j<DAYS;j++) tr.querySelector("[data-f=h"+j+"]").value=hv[j]||"";
-    tr.querySelector(".rm button").addEventListener("click",function(){
-      tr.remove(); if(!rowsEl.children.length) makeRow(); recalc(); saveDraft(); });
-    rowsEl.appendChild(tr);
+    $("nameList").innerHTML=html||'<div class="acempty">Kein Name gefunden.</div>';
+  }
+  function pickName(n){
+    try{ localStorage.setItem(KEY_NAME,JSON.stringify(n)); }catch(e){}
+    showMain();
   }
 
-  function collectRows(){
-    var rows=[];
-    rowsEl.querySelectorAll("tr").forEach(function(tr){
-      var r={ auftrag:tr.querySelector("[data-f=auftrag]").value, h:[] };
-      for(var i=0;i<DAYS;i++) r.h.push(tr.querySelector("[data-f=h"+i+"]").value);
-      rows.push(r);
+  /* ---------- Wochen-Auswahl: diese + letzte Woche ---------- */
+  function renderWeeks(){
+    var thisMon=isoDate(mondayOf(new Date()));
+    var lastMon=isoDate(addDays(thisMon,-7));
+    function label(iso){ var a=new Date(iso+"T12:00:00"), b=addDays(iso,6);
+      return chShort(a)+" – "+chShort(b); }
+    $("weeks").innerHTML=
+      '<button type="button" class="week'+(weekStart===lastMon?" sel":"")+'" data-iso="'+lastMon+'">'+
+        '<span class="wt">Letzte Woche</span><span class="wd">'+label(lastMon)+"</span></button>"+
+      '<button type="button" class="week'+(weekStart===thisMon?" sel":"")+'" data-iso="'+thisMon+'">'+
+        '<span class="wt">Diese Woche</span><span class="wd">'+label(thisMon)+"</span></button>";
+  }
+
+  /* ---------- Auftrag-Karten ----------
+     Pro Karte: ein Auftrag + 7 Tages-Knöpfe. Tippen = 8.5 h setzen,
+     nochmal tippen = Tag zum Anpassen wählen (Stepper), 0 h = aus. */
+  function makeCard(data){
+    data=data||{};
+    var div=document.createElement("div"); div.className="card";
+    var hours=(data.h&&data.h.length===7)?data.h.slice():[0,0,0,0,0,0,0];
+    var editing=-1;
+    var dbtns='';
+    for(var i=0;i<7;i++){ dbtns+='<button type="button" class="dbtn" data-i="'+i+'">'+
+      '<span class="dw">'+DW[i]+'</span><span class="dh"></span></button>'; }
+    div.innerHTML='<button class="del" type="button" aria-label="Entfernen">✕</button>'+
+      '<label>Auftrag Nr. oder Absenz</label>'+
+      '<input class="auftrag" autocomplete="off" placeholder="Nummer tippen …">'+
+      '<div class="daysgrid">'+dbtns+'</div>'+
+      '<div class="stepper" style="display:none">'+
+        '<button type="button" class="minus" aria-label="weniger">−</button>'+
+        '<div class="val"><span class="n">8,5</span><small class="stlabel">Stunden</small></div>'+
+        '<button type="button" class="plus" aria-label="mehr">+</button>'+
+      '</div>'+
+      '<div class="cardtotal">Total <b class="ct">0 h</b></div>';
+    var inp=div.querySelector(".auftrag"); inp.value=data.auftrag||"";
+    var stepper=div.querySelector(".stepper"), nEl=div.querySelector(".n"), stl=div.querySelector(".stlabel");
+
+    function paint(){
+      div.querySelectorAll(".dbtn").forEach(function(b,i){
+        b.classList.toggle("on",hours[i]>0);
+        b.classList.toggle("editing",i===editing);
+        b.querySelector(".dh").textContent=hours[i]>0?fmtH(hours[i]):"–";
+      });
+      var t=hours.reduce(function(a,b){ return a+b; },0);
+      div.querySelector(".ct").textContent=fmtH(t)+" h";
+      if(editing>=0){ stepper.style.display="";
+        nEl.textContent=fmtH(hours[editing]); stl.textContent="Stunden am "+DW[editing]; }
+      else stepper.style.display="none";
+      paintWeekTotal(); saveDraft();
+    }
+    div.querySelector(".daysgrid").addEventListener("click",function(e){
+      var b=e.target.closest?e.target.closest(".dbtn"):null; if(!b) return;
+      var i=parseInt(b.getAttribute("data-i"),10);
+      if(hours[i]===0){ hours[i]=8.5; editing=i; }        // 1. Tipp: Standard setzen
+      else if(editing===i){ editing=-1; }                  // Stepper zuklappen
+      else { editing=i; }                                  // zum Anpassen wählen
+      paint();
     });
-    return rows;
+    div.querySelector(".minus").addEventListener("click",function(){
+      if(editing<0) return; hours[editing]=Math.max(0,Math.round((hours[editing]-0.5)*10)/10);
+      if(hours[editing]===0) editing=-1; paint(); });
+    div.querySelector(".plus").addEventListener("click",function(){
+      if(editing<0) return; hours[editing]=Math.min(16,Math.round((hours[editing]+0.5)*10)/10); paint(); });
+    div.getData=function(){ return { auftrag:inp.value, h:hours.slice() }; };
+    inp.addEventListener("focus",function(){ AC.open(inp); });
+    inp.addEventListener("input",function(){ AC.open(inp); saveDraft(); });
+    inp.addEventListener("blur",function(){ setTimeout(AC.close,150); });
+    div.querySelector(".del").addEventListener("click",function(){
+      div.remove(); if(!$("cards").children.length) makeCard(); paintWeekTotal(); saveDraft(); });
+    $("cards").appendChild(div); paint();
+    return div;
   }
-  function collect(){ return { ma:$("ma").value, von:$("von").value, rapnr:$("rapnr").value, rows:collectRows() }; }
 
-  function recalc(){
-    var col=[0,0,0,0,0,0,0], total=0;
-    rowsEl.querySelectorAll("tr").forEach(function(tr){
-      var rt=0; for(var i=0;i<DAYS;i++){ var v=num(tr.querySelector("[data-f=h"+i+"]").value); rt+=v; col[i]+=v; }
-      total+=rt; tr.querySelector("[data-f=rowtotal]").textContent=rt?f1(rt):"";
-    });
-    for(var i=0;i<DAYS;i++) $("t"+i).textContent=col[i]?f1(col[i]):"";
-    $("tTotal").textContent=f1(total); $("sumH").textContent=f1(total); $("sumSoll").textContent=f1(SOLL);
-    var diff=total-SOLL; if(Math.abs(diff)<0.005) diff=0;
-    var de=$("sumDiff"); de.textContent=(diff>=0?"+":"−")+f1(Math.abs(diff)); de.className="v "+(diff>=0?"ok":"warn");
+  function collectCards(){
+    var out=[];
+    $("cards").querySelectorAll(".card").forEach(function(c){ out.push(c.getData()); });
+    return out;
+  }
+  function paintWeekTotal(){
+    var t=0;
+    collectCards().forEach(function(c){ c.h.forEach(function(v){ t+=v; }); });
+    $("weekTotal").textContent=fmtH(t)+" h";
   }
 
-  /* ---------- autocomplete ---------- */
+  /* ---------- Draft ---------- */
+  function saveDraft(){ try{ localStorage.setItem(KEY_DRAFT,JSON.stringify({week:weekStart,cards:collectCards()})); }catch(e){} }
+  function loadDraft(){ try{ return JSON.parse(localStorage.getItem(KEY_DRAFT)); }catch(e){ return null; } }
+
+  /* ---------- Autocomplete ---------- */
   var AC=(function(){
     var box=null, input=null, items=[], active=-1;
     function ensure(){
       if(box) return;
-      box=document.createElement("div"); box.className="acbox"; box.setAttribute("role","listbox");
+      box=document.createElement("div"); box.className="acbox";
       document.body.appendChild(box);
       box.addEventListener("mousedown",function(e){
         var el=e.target.closest?e.target.closest(".acitem"):null; if(!el) return;
@@ -264,86 +303,106 @@
       return out.slice(0,50);
     }
     function render(){
-      if(!items.length){ box.innerHTML='<div class="acempty">Keine Treffer – noch keine Projekte hinterlegt.</div>'; return; }
+      if(!items.length){ box.innerHTML='<div class="acempty">Keine Treffer.</div>'; return; }
       var h=""; items.forEach(function(it,i){
-        h+='<div class="acitem'+(i===active?" active":"")+'" data-i="'+i+'" role="option"><span class="acnr">'+
-           esc(it.nr)+"</span>"+(it.label?'<span class="aclabel">'+esc(it.label)+"</span>":"")+"</div>"; });
+        h+='<div class="acitem'+(i===active?" active":"")+'" data-i="'+i+'"><span class="acnr">'+esc(it.nr)+
+           "</span>"+(it.label?'<span class="aclabel">'+esc(it.label)+"</span>":"")+"</div>"; });
       box.innerHTML=h;
     }
     function position(){ if(!input) return; var r=input.getBoundingClientRect();
       box.style.left=(window.pageXOffset+r.left)+"px"; box.style.top=(window.pageYOffset+r.bottom+2)+"px";
       box.style.minWidth=r.width+"px"; }
-    function open(inp){ ensure(); input=inp; active=-1; items=candidates(inp.value); render(); position(); box.classList.add("open"); }
+    function open(inp){ ensure(); input=inp; active=-1; items=candidates(inp.value);
+      render(); position(); box.classList.add("open"); }
     function close(){ if(box) box.classList.remove("open"); input=null; active=-1; }
-    function move(d){ if(!items.length) return; active=(active+d+items.length)%items.length; render();
-      var el=box.querySelector(".acitem.active"); if(el&&el.scrollIntoView) el.scrollIntoView({block:"nearest"}); }
     function choose(){ if(active<0||active>=items.length){ close(); return; }
-      var inp=input, val=items[active].nr; close(); if(inp){ inp.value=val; } recalc(); saveDraft(); }
+      var inp=input, v=items[active].nr; close(); if(inp) inp.value=v; saveDraft(); }
     function reposition(){ if(box&&box.classList.contains("open")) position(); }
-    return { open:open, close:close, move:move, choose:choose, reposition:reposition, hasActive:function(){ return active>=0; } };
+    return { open:open, close:close, choose:choose, reposition:reposition };
   })();
 
-  /* ---------- submit ---------- */
-  function showMsg(kind,text){ msgEl.className="msg show "+kind; msgEl.textContent=text; }
-  function buildEntries(){
-    var ds=weekDates(), out=[];
-    collectRows().forEach(function(r){
-      if(!r.auftrag) return;
-      for(var i=0;i<DAYS;i++){ var h=num(r.h[i]); if(h>0) out.push({ datum:chDate(ds[i]), auftrag:r.auftrag, stunden:h }); }
-    });
-    return out;
-  }
+  /* ---------- Senden ---------- */
   function submit(){
-    if(!$("ma").value){ showMsg("err","Bitte zuerst deinen Namen wählen."); return; }
-    var entries=buildEntries();
-    if(!entries.length){ showMsg("err","Keine Stunden erfasst – bitte mindestens eine Zeile ausfüllen."); return; }
-    var btn=$("submit"); btn.disabled=true; $("submitState").innerHTML='<span class="spinner"></span>';
+    var me=savedName(); if(!me){ showName(); return; }
+    var entries=[];
+    collectCards().forEach(function(c){
+      if(!c.auftrag) return;
+      for(var i=0;i<7;i++){
+        if(c.h[i]>0) entries.push({ datum:chDate(addDays(weekStart,i)), auftrag:c.auftrag, stunden:c.h[i] });
+      }
+    });
+    if(!entries.length){ showErr("Bitte einen Auftrag wählen und Tage antippen."); return; }
+    var btn=$("send"); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Wird gesendet …';
     google.script.run
       .withSuccessHandler(function(res){
-        btn.disabled=false; $("submitState").textContent="";
-        showMsg("ok","✓ Woche abgesendet – "+res.count+" Buchungszeilen zentral gespeichert. Du kannst nun eine neue Woche erfassen.");
-        rowsEl.innerHTML=""; makeRow(); makeRow(); $("rapnr").value=""; recalc(); saveDraft();
+        btn.disabled=false; btn.textContent="Woche abschicken";
+        try{ localStorage.removeItem(KEY_DRAFT); }catch(e){}
+        $("mainScreen").style.display="none"; $("sendbar").style.display="none";
+        var a=new Date(weekStart+"T12:00:00");
+        $("doneText").textContent=res.count+" Buchung"+(res.count>1?"en":"")+" für die Woche ab "+chDate(a)+" gespeichert.";
+        $("doneScreen").style.display="";
       })
       .withFailureHandler(function(err){
-        btn.disabled=false; $("submitState").textContent="";
-        showMsg("err","Fehler beim Absenden: "+(err&&err.message?err.message:err));
+        btn.disabled=false; btn.textContent="Woche abschicken";
+        showErr("Senden fehlgeschlagen: "+(err&&err.message?err.message:err)+" – nochmals versuchen.");
       })
-      .submitRapport({ ma:$("ma").value, maNr:selectedNr(), von:$("von").value, rapnr:$("rapnr").value, entries:entries });
+      .submitRapport({ ma:me.name, maNr:me.nr||"", von:weekStart, rapnr:"", entries:entries });
   }
 
-  /* ---------- init ---------- */
-  function boot(data){
-    PROJECTS=data.projects||[]; NAMES=data.names||[]; SOLL=data.soll||40;
-    rowsEl=$("rows"); msgEl=$("msg");
-    $("badge").textContent=PROJECTS.length+" Projekte · "+NAMES.length+" Namen";
-    $("loading").classList.remove("show"); $("app").style.display="";
-
-    var draft=loadDraft();
-    renderNameSelect(draft&&draft.ma||"");
-    $("von").value=(draft&&draft.von)||isoDate(mondayOf(new Date()));
-    $("rapnr").value=(draft&&draft.rapnr)||"";
-    var rs=(draft&&draft.rows&&draft.rows.length)?draft.rows:[emptyRow(),emptyRow()];
-    rs.forEach(makeRow);
-    renderDates(); recalc();
-
-    $("addRow").addEventListener("click",function(){ makeRow(); saveDraft(); });
-    $("submit").addEventListener("click",submit);
-    ["ma","von","rapnr"].forEach(function(id){
-      $(id).addEventListener("input",function(){ if(id==="von") renderDates(); saveDraft(); }); });
-    rowsEl.addEventListener("input",function(){ recalc(); saveDraft(); });
-    window.addEventListener("scroll",AC.reposition,true); window.addEventListener("resize",AC.reposition);
-
-    if(!NAMES.length||!PROJECTS.length){
-      showMsg("info","Hinweis an die Administration: Im Google Sheet sind noch keine "+
-        (!NAMES.length?"Namen":"")+(!NAMES.length&&!PROJECTS.length?" und ":"")+(!PROJECTS.length?"Projekte":"")+
-        " hinterlegt. Bitte die Reiter Mitarbeiter und Projekte befüllen.");
+  /* ---------- Screens ---------- */
+  function showName(){
+    $("nameScreen").style.display=""; $("mainScreen").style.display="none";
+    $("sendbar").style.display="none"; $("doneScreen").style.display="none"; $("who").style.display="none";
+    $("nameSearch").value=""; renderNameList(""); $("nameSearch").focus();
+  }
+  function showMain(){
+    var me=savedName(); if(!me){ showName(); return; }
+    $("whoName").textContent=me.name; $("who").style.display="";
+    $("nameScreen").style.display="none"; $("doneScreen").style.display="none";
+    $("mainScreen").style.display=""; $("sendbar").style.display="";
+    if(!weekStart) weekStart=isoDate(mondayOf(new Date()));
+    renderWeeks();
+    if(!$("cards").children.length){
+      var dr=loadDraft();
+      if(dr&&dr.cards&&dr.cards.length&&dr.week===weekStart){
+        dr.cards.forEach(function(c){ makeCard(c); });
+      } else makeCard();
     }
+    paintWeekTotal();
   }
-  function bootFail(err){
-    $("loading").className="msg show err";
-    $("loading").textContent="Konnte Stammdaten nicht laden: "+(err&&err.message?err.message:err);
-  }
-  google.script.run.withSuccessHandler(boot).withFailureHandler(bootFail).getStammdaten();
+
+  /* ---------- Events ---------- */
+  $("nameSearch").addEventListener("input",function(){ renderNameList(this.value); });
+  $("nameList").addEventListener("click",function(e){
+    var b=e.target.closest?e.target.closest(".namebtn"):null; if(!b) return;
+    pickName(NAMES[parseInt(b.getAttribute("data-i"),10)]);
+  });
+  $("changeName").addEventListener("click",showName);
+  $("weeks").addEventListener("click",function(e){
+    var b=e.target.closest?e.target.closest(".week"):null; if(!b) return;
+    weekStart=b.getAttribute("data-iso"); renderWeeks();
+    $("cards").innerHTML="";
+    var dr=loadDraft();
+    if(dr&&dr.cards&&dr.cards.length&&dr.week===weekStart){ dr.cards.forEach(function(c){ makeCard(c); }); }
+    else makeCard();
+    paintWeekTotal(); saveDraft();
+  });
+  $("addCard").addEventListener("click",function(){ makeCard(); });
+  $("send").addEventListener("click",submit);
+  $("again").addEventListener("click",function(){
+    $("cards").innerHTML=""; weekStart=isoDate(mondayOf(new Date())); showMain();
+  });
+  window.addEventListener("scroll",AC.reposition,true); window.addEventListener("resize",AC.reposition);
+
+  /* ---------- Boot ---------- */
+  google.script.run.withSuccessHandler(function(data){
+    PROJECTS=data.projects||[]; NAMES=data.names||[];
+    $("loading").classList.remove("show");
+    if(savedName()) showMain(); else showName();
+  }).withFailureHandler(function(err){
+    $("loading").className="msg err show";
+    $("loading").textContent="Konnte nicht laden: "+(err&&err.message?err.message:err);
+  }).getStammdaten();
 </script>
 </body>
 </html>
