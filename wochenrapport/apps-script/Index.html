@@ -186,10 +186,14 @@
   function renderNameSelect(current){
     var sel=$("ma"); current=(current!=null?current:sel.value)||"";
     var html='<option value="">– Name wählen –</option>', found=false;
-    NAMES.forEach(function(n){ if(n===current) found=true;
-      html+='<option value="'+esc(n)+'"'+(n===current?" selected":"")+">"+esc(n)+"</option>"; });
+    NAMES.forEach(function(n){ if(n.name===current) found=true;
+      html+='<option value="'+esc(n.name)+'" data-nr="'+esc(n.nr||"")+'"'+(n.name===current?" selected":"")+">"+esc(n.name)+"</option>"; });
     if(current&&!found) html+='<option value="'+esc(current)+'" selected>'+esc(current)+"</option>";
     sel.innerHTML=html;
+  }
+  function selectedNr(){
+    var sel=$("ma"), opt=sel.options[sel.selectedIndex];
+    return (opt&&opt.getAttribute("data-nr"))||"";
   }
 
   /* ---------- rows ---------- */
@@ -304,7 +308,7 @@
         btn.disabled=false; $("submitState").textContent="";
         showMsg("err","Fehler beim Absenden: "+(err&&err.message?err.message:err));
       })
-      .submitRapport({ ma:$("ma").value, von:$("von").value, rapnr:$("rapnr").value, entries:entries });
+      .submitRapport({ ma:$("ma").value, maNr:selectedNr(), von:$("von").value, rapnr:$("rapnr").value, entries:entries });
   }
 
   /* ---------- init ---------- */

@@ -52,37 +52,64 @@ Mitarbeiter  ──►  Web-Formular  ──►  Google Sheet "Rapporte"  ──
 
 Im Google Sheet:
 
-- **Reiter `Projekte`:** Spalte A = Auftragsnummer, Spalte B = Bezeichnung (optional).
-  Einfach aus Messerli kopieren und einfügen. Die Bezeichnung hilft nur bei der Auswahl.
-- **Reiter `Mitarbeiter`:** Spalte A = Name (ein Name pro Zeile).
+- **Reiter `Projekte`:** Spalte A = **Projektnummer exakt wie in MesserliPROJEKT**
+  (z. B. `26-26581.001`), Spalte B = Bezeichnung (optional, hilft nur bei der Auswahl).
+  Einfach aus Messerli kopieren und einfügen.
+- **Reiter `Mitarbeiter`:** Spalte A = **Mitarbeiter-Nummer exakt wie in Messerli**,
+  Spalte B = Name. Die Datei `mitarbeiter-liste.tsv` in diesem Repo enthält alle 69
+  Mitarbeiter mit Nummern zum direkten Einfügen (Stand JahresRapport 20.07.2026).
+- **Reiter `Kostenarten`:** Spalte A = Typ (`Arbeit` sowie die Absenzgründe),
+  Spalte B = **Kostenart-Nummer exakt wie in Messerli**. `Arbeit` gilt für alle
+  produktiven Projektstunden, die Absenzgründe haben je eigene Nummern.
 
-Änderungen sind sofort im Formular wirksam – kein erneutes Veröffentlichen nötig.
+Änderungen sind sofort wirksam – kein erneutes Veröffentlichen nötig.
 
 ## Export nach Messerli
 
-Der Reiter **`Rapporte`** enthält alle Buchungen mit den Spalten:
+Das Importformat wurde mit dem Messerli-Support geklärt (Ticket BUS-SUP-27446,
+`Muster_Arbeitszeitimport-Vorlage.csv`):
 
-| Zeitstempel | Mitarbeiter | Woche vom | Rapport Nr. | Datum | Auftrag Nr. | Stunden |
-|---|---|---|---|---|---|---|
+```
+Datum;Projektnummer;Mitarbeiter Nummer;Mitarbeiter;Bemerkung;Kostenart-Nummer;Dauer
+16.01.2026;26-26581.001;303;Markus Müller;Lampe montieren;102;08:00
+```
 
-Zum Import: gewünschten Zeitraum filtern und **Datei → Herunterladen → CSV**. Das
-Spaltenformat lässt sich exakt an die Messerli-Importvorlage anpassen, sobald diese bekannt ist.
+- Spaltenreihenfolge darf abweichen; ohne Von/Bis-Zeiten genügt die Spalte **Dauer**.
+- Projektnummern, Mitarbeiternummern und Kostenartnummern müssen **exakt** den
+  Nummern aus MesserliPROJEKT entsprechen.
+
+Im Sheet: Menü **Wochenrapport → Messerli-Export erstellen …**, Zeitraum eingeben
+(von/bis als TT.MM.JJJJ) – die CSV wird im Drive abgelegt und der Link angezeigt.
+Dabei gilt:
+
+- `Dauer` wird aus den Dezimalstunden umgerechnet (8.5 → `08:30`).
+- Produktive Stunden: `Projektnummer` = Auftrag-Nr., Kostenart = Zeile `Arbeit`.
+- Absenzen (Ferien, Krank, …): `Projektnummer` leer, Absenzgrund in `Bemerkung`,
+  Kostenart aus dem Reiter `Kostenarten`.
+- Fehlende Mitarbeiter- oder Kostenart-Nummern werden beim Export als Warnung gemeldet.
+
+Der Reiter **`Rapporte`** (Rohdaten) hat die Spalten:
+
+| Zeitstempel | Mitarbeiter Nr. | Mitarbeiter | Woche vom | Rapport Nr. | Datum | Auftrag Nr. | Stunden |
+|---|---|---|---|---|---|---|---|
+
+Laut Messerli-Support dauert das Einrichten und Testen des Imports auf deren Seite
+ca. 2–3 h (Fr. 180.–/h); weitere Module werden nicht benötigt.
 
 ## Struktur dieses Repos
 
 ```
 wochenrapport/
 ├─ apps-script/
-│  ├─ Code.gs       Backend: liefert das Formular, sammelt Rapporte, liest Stammdaten
-│  └─ Index.html    Web-Formular (Namensauswahl, Auftrag-Autocomplete, Stundenerfassung)
-└─ README.md        diese Anleitung
+│  ├─ Code.gs             Backend: Formular, zentrale Ablage, Messerli-CSV-Export
+│  └─ Index.html          Web-Formular (Namensauswahl, Auftrag-Autocomplete, Stundenerfassung)
+├─ mitarbeiter-liste.tsv  69 Mitarbeiter (Nr. + Name) zum Einfügen in den Reiter "Mitarbeiter"
+└─ README.md              diese Anleitung
 ```
 
 ## Offene Punkte / nächste Ausbaustufe
 
-- **Messerli-Importformat:** exakte Spaltenreihenfolge/Trennzeichen der Messerli-Importvorlage
-  abklären und CSV-Export daran anpassen.
-- Optional: Freigabe-/Visum-Schritt durch Vorgesetzte, Wochenübersicht pro Mitarbeiter,
-  automatischer CSV-Export per Menüpunkt.
-- Alternative geprüft: Messerli-eigene Web-Erfassung (MesserliZERF / Web-Rapport) – falls
-  lizenziert, entfällt der Import ganz.
+- **Kostenart-Nummern** im Reiter `Kostenarten` eintragen (aus MesserliPROJEKT übernehmen).
+- **Projektnummern** im Reiter `Projekte` einfügen (exakt wie in Messerli, z. B. `26-26581.001`).
+- Import auf Messerli-Seite einrichten/testen lassen (Angebot Support: ca. 2–3 h à Fr. 180.–).
+- Optional: Freigabe-/Visum-Schritt durch Vorgesetzte, Wochenübersicht pro Mitarbeiter.
