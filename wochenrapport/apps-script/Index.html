@@ -243,7 +243,7 @@
   }
 
   /* ---------- Auftrag-Karten ----------
-     Pro Karte: ein Auftrag + 7 Tages-Knöpfe. Tippen = 8.5 h setzen,
+     Pro Karte: ein Auftrag + 7 Tages-Knöpfe. Tippen = 8 h setzen,
      nochmal tippen = Tag zum Anpassen wählen (Stepper), 0 h = aus. */
   function makeCard(data){
     data=data||{};
@@ -259,7 +259,7 @@
       '<div class="daysgrid">'+dbtns+'</div>'+
       '<div class="stepper" style="display:none">'+
         '<button type="button" class="minus" aria-label="weniger">−</button>'+
-        '<div class="val"><span class="n">8,5</span><small class="stlabel">Stunden</small></div>'+
+        '<div class="val"><span class="n">8</span><small class="stlabel">Stunden</small></div>'+
         '<button type="button" class="plus" aria-label="mehr">+</button>'+
       '</div>'+
       '<div class="cardtotal">Total <b class="ct">0 h</b></div>';
@@ -282,7 +282,7 @@
     div.querySelector(".daysgrid").addEventListener("click",function(e){
       var b=e.target.closest?e.target.closest(".dbtn"):null; if(!b) return;
       var i=parseInt(b.getAttribute("data-i"),10);
-      if(hours[i]===0){ hours[i]=8.5; editing=i; }        // 1. Tipp: Standard setzen
+      if(hours[i]===0){ hours[i]=8; editing=i; }          // 1. Tipp: Standard-Arbeitstag (8 h) setzen
       else if(editing===i){ editing=-1; }                  // Stepper zuklappen
       else { editing=i; }                                  // zum Anpassen wählen
       paint();
