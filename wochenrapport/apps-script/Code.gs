@@ -21,8 +21,30 @@ var SHEET_MITARBEITER = 'Mitarbeiter';
 var SHEET_KOSTEN     = 'Kostenarten';
 var SOLL_STUNDEN      = 40;
 
-/** Absenzgründe – identisch zur Liste im Formular. */
-var ABSENZEN = ['Büro', 'Ferien', 'Krank', 'Unfall', 'Feiertag', 'Schule', 'Militär/ZS', 'Weiterbildung'];
+/**
+ * Absenzarten mit Kostenart-Nummern aus MesserliPROJEKT (Stand 08/2026).
+ * Wird beim Einrichten in den Reiter "Kostenarten" geschrieben und kann
+ * dort jederzeit angepasst werden – das Sheet ist die führende Quelle.
+ */
+var ABSENZEN = [
+  { nr: '001', label: 'Unfall' },
+  { nr: '002', label: 'Unfall 20% Abzug' },
+  { nr: '003', label: 'Krank 20% Abzug' },
+  { nr: '004', label: 'Krank' },
+  { nr: '005', label: 'Militär / Zivilschutz' },
+  { nr: '006', label: 'Militär / Zivilschutz 50% Abzug' },
+  { nr: '007', label: 'Ferien Bezug' },
+  { nr: '008', label: 'Ferien Gutschrift' },
+  { nr: '009', label: 'Schule' },
+  { nr: '010', label: 'Weiterbildung' },
+  { nr: '011', label: 'Heirat' },
+  { nr: '012', label: 'Geburt' },
+  { nr: '013', label: 'Todesfall' },
+  { nr: '014', label: 'Öffentliches Amt' },
+  { nr: '015', label: 'Bezahlte Absenzen' },
+  { nr: '016', label: 'Unbezahlte Absenzen' },
+  { nr: '017', label: 'Diverse Absenzen' }
+];
 
 /** Menü im Sheet. */
 function onOpen() {
@@ -48,7 +70,7 @@ function ensureSheets_() {
   var ss = ss_();
   if (!ss.getSheetByName(SHEET_RAPPORTE)) {
     ss.insertSheet(SHEET_RAPPORTE).appendRow(
-      ['Zeitstempel', 'Mitarbeiter Nr.', 'Mitarbeiter', 'Woche vom', 'Rapport Nr.', 'Datum', 'Auftrag Nr.', 'Stunden']);
+      ['Zeitstempel', 'Mitarbeiter Nr.', 'Mitarbeiter', 'Woche vom', 'Rapport Nr.', 'Datum', 'Auftrag Nr.', 'Stunden', 'Unterschrift']);
   }
   if (!ss.getSheetByName(SHEET_PROJEKTE)) {
     ss.insertSheet(SHEET_PROJEKTE).appendRow(['Projektnummer (exakt wie Messerli)', 'Bezeichnung']);
@@ -59,8 +81,8 @@ function ensureSheets_() {
   if (!ss.getSheetByName(SHEET_KOSTEN)) {
     var ks = ss.insertSheet(SHEET_KOSTEN);
     ks.appendRow(['Typ', 'Kostenart-Nummer (exakt wie Messerli)']);
-    ks.appendRow(['Arbeit', '']);          // produktive Projektstunden
-    ABSENZEN.forEach(function (a) { ks.appendRow([a, '']); });
+    ks.appendRow(['Arbeit', '']);          // produktive Projektstunden – Nummer noch eintragen!
+    ABSENZEN.forEach(function (a) { ks.appendRow([a.label, a.nr]); });
   }
 }
 
@@ -83,7 +105,16 @@ function getStammdaten() {
     if (name) names.push({ nr: mnr, name: name });
   }
 
-  return { projects: projects, names: names, soll: SOLL_STUNDEN };
+  // Absenzarten aus dem Kostenarten-Reiter (ohne "Arbeit") – so zeigt das
+  // Formular exakt die Liste, die auch der Export verwendet.
+  var absenzen = [];
+  var kost = ss.getSheetByName(SHEET_KOSTEN).getDataRange().getValues();
+  for (var k = 1; k < kost.length; k++) {
+    var typ = trim_(kost[k][0]);
+    if (typ && typ.toLowerCase() !== 'arbeit') absenzen.push(typ);
+  }
+
+  return { projects: projects, names: names, absenzen: absenzen, soll: SOLL_STUNDEN };
 }
 
 /**
@@ -98,6 +129,23 @@ function submitRapport(payload) {
   });
   if (!entries.length) throw new Error('Keine Stunden erfasst.');
 
+  // Unterschrift (PNG als Data-URL) in Drive ablegen; im Sheet steht der Link.
+  var signUrl = '';
+  var m = /^data:image\/(png|jpeg);base64,(.+)$/.exec(String(payload.unterschrift || ''));
+  if (m) {
+    try {
+      var folderName = 'Wochenrapport Unterschriften';
+      var it = DriveApp.getFoldersByName(folderName);
+      var folder = it.hasNext() ? it.next() : DriveApp.createFolder(folderName);
+      var fname = 'Unterschrift_' + String(payload.ma).replace(/[^\wÀ-ÿ]+/g, '_') +
+                  '_' + String(payload.von || '') + '.png';
+      var blob = Utilities.newBlob(Utilities.base64Decode(m[2]), 'image/' + m[1], fname);
+      signUrl = folder.createFile(blob).getUrl();
+    } catch (err) {
+      signUrl = 'Fehler beim Speichern: ' + err;
+    }
+  }
+
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -106,7 +154,8 @@ function submitRapport(payload) {
     var now = new Date();
     var rows = entries.map(function (e) {
       return [now, String(payload.maNr || ''), String(payload.ma), String(payload.von || ''),
-              String(payload.rapnr || ''), String(e.datum || ''), String(e.auftrag), Number(e.stunden)];
+              String(payload.rapnr || ''), String(e.datum || ''), String(e.auftrag), Number(e.stunden),
+              signUrl];
     });
     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
     return { ok: true, count: rows.length };

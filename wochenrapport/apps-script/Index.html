@@ -116,6 +116,24 @@
     border-radius:50%; display:inline-block; vertical-align:-3px; margin-right:8px; animation:spin .7s linear infinite; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
   @media (prefers-reduced-motion:reduce){ .spinner{ animation:none; } }
+
+  /* ---- Unterschrift ---- */
+  .signoverlay{ position:fixed; inset:0; background:rgba(20,26,32,.55); z-index:100; display:none;
+    align-items:flex-end; justify-content:center; }
+  .signoverlay.open{ display:flex; }
+  .signsheet{ background:var(--card); border-radius:16px 16px 0 0; width:100%; max-width:520px;
+    padding:18px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .signsheet h3{ margin:0 0 4px; font-size:18px; }
+  .signsheet p{ margin:0 0 12px; font-size:14px; color:var(--ink-soft); }
+  #signCanvas{ width:100%; height:180px; border:2px dashed var(--line); border-radius:12px;
+    background:#fff; touch-action:none; display:block; }
+  .signbtns{ display:flex; gap:10px; margin-top:14px; }
+  .signbtns button{ flex:1; padding:15px; font:inherit; font-size:16px; font-weight:700;
+    border-radius:12px; cursor:pointer; }
+  #signClear{ border:1px solid var(--line); background:var(--paper); color:var(--ink-soft); }
+  #signCancel{ border:1px solid var(--line); background:var(--paper); color:var(--ink-soft); }
+  #signOk{ border:0; background:var(--ok); color:#fff; }
+  #signOk[disabled]{ opacity:.5; }
 </style>
 </head>
 <body>
@@ -152,6 +170,20 @@
     <button id="send" type="button">Woche abschicken</button>
   </div></div>
 
+  <!-- Unterschrift -->
+  <div class="signoverlay" id="signOverlay">
+    <div class="signsheet">
+      <h3>Mit Unterschrift bestätigen</h3>
+      <p>Bitte im Feld mit dem Finger unterschreiben – damit bestätigst du deine Woche.</p>
+      <canvas id="signCanvas"></canvas>
+      <div class="signbtns">
+        <button id="signCancel" type="button">Zurück</button>
+        <button id="signClear" type="button">Löschen</button>
+        <button id="signOk" type="button" disabled>Senden</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Erfolg -->
   <section id="doneScreen" style="display:none">
     <div class="check">✓</div>
@@ -162,7 +194,9 @@
 </div>
 
 <script>
-  var PROJECTS=[], NAMES=[], ABSENCES=["Ferien","Krank","Unfall","Feiertag","Schule","Militär/ZS","Weiterbildung","Büro"];
+  var PROJECTS=[], NAMES=[];
+  // Fallback, falls der Kostenarten-Reiter leer ist; wird beim Laden durch die Serverliste ersetzt.
+  var ABSENCES=["Unfall","Krank","Ferien Bezug","Schule","Weiterbildung"];
   var KEY_NAME="zeit-name", KEY_DRAFT="zeit-draft-woche";
   var DW=["Mo","Di","Mi","Do","Fr","Sa","So"];
   var weekStart=null;                    // ISO des Montags
@@ -321,6 +355,37 @@
     return { open:open, close:close, choose:choose, reposition:reposition };
   })();
 
+  /* ---------- Unterschrift ---------- */
+  var SIGN=(function(){
+    var canvas=null, ctx=null, drawing=false, hasInk=false, pending=null;
+    function setup(){
+      canvas=$("signCanvas"); ctx=canvas.getContext("2d");
+      var r=canvas.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+      canvas.width=Math.round(r.width*dpr); canvas.height=Math.round(r.height*dpr);
+      ctx.scale(dpr,dpr);
+      ctx.fillStyle="#fff"; ctx.fillRect(0,0,r.width,r.height);
+      ctx.strokeStyle="#1C2430"; ctx.lineWidth=2.5; ctx.lineCap="round"; ctx.lineJoin="round";
+      hasInk=false; $("signOk").disabled=true;
+      function pos(e){ var rr=canvas.getBoundingClientRect();
+        return { x:e.clientX-rr.left, y:e.clientY-rr.top }; }
+      canvas.onpointerdown=function(e){ e.preventDefault(); drawing=true;
+        canvas.setPointerCapture&&canvas.setPointerCapture(e.pointerId);
+        var p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+0.1,p.y+0.1); ctx.stroke(); ink(); };
+      canvas.onpointermove=function(e){ if(!drawing) return; e.preventDefault();
+        var p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); ink(); };
+      canvas.onpointerup=canvas.onpointercancel=function(){ drawing=false; ctx.beginPath(); };
+    }
+    function ink(){ if(!hasInk){ hasInk=true; $("signOk").disabled=false; } }
+    function clearPad(){ if(!ctx) return; var r=canvas.getBoundingClientRect();
+      ctx.fillStyle="#fff"; ctx.fillRect(0,0,r.width,r.height);
+      hasInk=false; $("signOk").disabled=true; }
+    function open(cb){ pending=cb; $("signOverlay").classList.add("open"); setup(); }
+    function close(){ $("signOverlay").classList.remove("open"); pending=null; }
+    function confirm(){ if(!hasInk||!pending) return;
+      var data=canvas.toDataURL("image/png"); var cb=pending; close(); cb(data); }
+    return { open:open, close:close, clearPad:clearPad, confirm:confirm };
+  })();
+
   /* ---------- Senden ---------- */
   function submit(){
     var me=savedName(); if(!me){ showName(); return; }
@@ -332,6 +397,9 @@
       }
     });
     if(!entries.length){ showErr("Bitte einen Auftrag wählen und Tage antippen."); return; }
+    SIGN.open(function(unterschrift){ send_(me,entries,unterschrift); });
+  }
+  function send_(me,entries,unterschrift){
     var btn=$("send"); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Wird gesendet …';
     google.script.run
       .withSuccessHandler(function(res){
@@ -346,7 +414,8 @@
         btn.disabled=false; btn.textContent="Woche abschicken";
         showErr("Senden fehlgeschlagen: "+(err&&err.message?err.message:err)+" – nochmals versuchen.");
       })
-      .submitRapport({ ma:me.name, maNr:me.nr||"", von:weekStart, rapnr:"", entries:entries });
+      .submitRapport({ ma:me.name, maNr:me.nr||"", von:weekStart, rapnr:"", entries:entries,
+                       unterschrift:unterschrift||"" });
   }
 
   /* ---------- Screens ---------- */
@@ -389,6 +458,9 @@
   });
   $("addCard").addEventListener("click",function(){ makeCard(); });
   $("send").addEventListener("click",submit);
+  $("signCancel").addEventListener("click",SIGN.close);
+  $("signClear").addEventListener("click",SIGN.clearPad);
+  $("signOk").addEventListener("click",SIGN.confirm);
   $("again").addEventListener("click",function(){
     $("cards").innerHTML=""; weekStart=isoDate(mondayOf(new Date())); showMain();
   });
@@ -397,6 +469,7 @@
   /* ---------- Boot ---------- */
   google.script.run.withSuccessHandler(function(data){
     PROJECTS=data.projects||[]; NAMES=data.names||[];
+    if(data.absenzen&&data.absenzen.length) ABSENCES=data.absenzen;
     $("loading").classList.remove("show");
     if(savedName()) showMain(); else showName();
   }).withFailureHandler(function(err){
