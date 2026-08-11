@@ -209,6 +209,12 @@
     <div class="check">✓</div>
     <h2>Erfasst!</h2>
     <p id="doneText"></p>
+    <p id="mailText" style="color:var(--ink-soft);font-size:14px;margin:-16px 0 26px;display:none"></p>
+    <div id="pdfWrap" style="display:none;margin-bottom:14px">
+      <a id="pdfBtn" href="#" target="_blank" rel="noopener" style="display:inline-block;
+        padding:14px 22px;border-radius:12px;background:var(--blau);color:#fff;font-weight:600;
+        text-decoration:none">📄 Mein PDF ansehen</a>
+    </div>
     <button id="again" type="button">Neue Woche erfassen</button>
   </section>
 </div>
@@ -520,6 +526,12 @@
         $("mainScreen").style.display="none"; $("sendbar").style.display="none";
         var a=new Date(weekStart+"T12:00:00");
         $("doneText").textContent=res.count+" Buchung"+(res.count>1?"en":"")+" für die Woche ab "+chDate(a)+" gespeichert.";
+        var hasPdf=res.pdfUrl&&res.pdfUrl.indexOf("http")===0;
+        $("pdfWrap").style.display=hasPdf?"":"none";
+        if(hasPdf) $("pdfBtn").href=res.pdfUrl;
+        if(res.mailedTo){ var mt=$("mailText");
+          mt.textContent="Das PDF wurde zusätzlich an "+res.mailedTo+" gesendet."; mt.style.display=""; }
+        else $("mailText").style.display="none";
         $("doneScreen").style.display="";
       })
       .withFailureHandler(function(err){

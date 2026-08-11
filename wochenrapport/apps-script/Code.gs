@@ -76,9 +76,10 @@ function ensureSheets_() {
   if (!ss.getSheetByName(SHEET_PROJEKTE)) {
     ss.insertSheet(SHEET_PROJEKTE).appendRow(['Projektnummer (exakt wie Messerli)', 'Bezeichnung']);
   }
-  if (!ss.getSheetByName(SHEET_MITARBEITER)) {
-    ss.insertSheet(SHEET_MITARBEITER).appendRow(['Mitarbeiter Nr. (exakt wie Messerli)', 'Name']);
-  }
+  var mitHeader = ['Mitarbeiter Nr. (exakt wie Messerli)', 'Name', 'E-Mail (optional, für PDF-Zustellung)'];
+  var mit = ss.getSheetByName(SHEET_MITARBEITER);
+  if (!mit) mit = ss.insertSheet(SHEET_MITARBEITER);
+  mit.getRange(1, 1, 1, mitHeader.length).setValues([mitHeader]).setFontWeight('bold');
   if (!ss.getSheetByName(SHEET_KOSTEN)) {
     var ks = ss.insertSheet(SHEET_KOSTEN);
     ks.appendRow(['Typ', 'Kostenart-Nummer (exakt wie Messerli)']);
@@ -131,11 +132,33 @@ function submitRapport(payload) {
   if (!entries.length) throw new Error('Keine Stunden erfasst.');
 
   // GAV-konformes, unterschriebenes Wochenrapport-PDF erzeugen und in Drive archivieren.
-  var pdfUrl = '';
+  var pdfUrl = '', pdfFile = null;
   try {
-    pdfUrl = createRapportPdf_(payload, entries);
+    pdfFile = createRapportPdf_(payload, entries);
+    // Mitarbeiter darf sein eigenes PDF über den Link ansehen (Link ist nicht erratbar).
+    pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    pdfUrl = pdfFile.getUrl();
   } catch (err) {
     pdfUrl = 'PDF-Fehler: ' + err;
+  }
+
+  // Optional: PDF per E-Mail zustellen, wenn im Reiter "Mitarbeiter" (Spalte C)
+  // eine Adresse hinterlegt ist.
+  var mailInfo = '';
+  if (pdfFile) {
+    try {
+      var email = emailForName_(payload.ma);
+      if (email) {
+        MailApp.sendEmail({
+          to: email,
+          subject: pdfFile.getName().replace('.pdf', '').replace(/_/g, ' '),
+          body: 'Hallo ' + payload.ma + '\n\nIm Anhang dein unterschriebener Wochenrapport.\n\n' +
+                'Diese Nachricht wurde automatisch erstellt.',
+          attachments: [pdfFile.getBlob()]
+        });
+        mailInfo = email;
+      }
+    } catch (err) { mailInfo = ''; }
   }
 
   var lock = LockService.getScriptLock();
@@ -150,17 +173,31 @@ function submitRapport(payload) {
               pdfUrl];
     });
     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
-    return { ok: true, count: rows.length };
+    return { ok: true, count: rows.length,
+             pdfUrl: (pdfFile ? pdfUrl : ''), mailedTo: mailInfo };
   } finally {
     lock.releaseLock();
   }
 }
 
+/** E-Mail-Adresse eines Mitarbeiters aus dem Stammdaten-Reiter (Spalte C). */
+function emailForName_(name) {
+  var v = ss_().getSheetByName(SHEET_MITARBEITER).getDataRange().getValues();
+  var key = String(name || '').trim().toLowerCase();
+  for (var i = 1; i < v.length; i++) {
+    if (trim_(v[i][1]).toLowerCase() === key) {
+      var mail = trim_(v[i][2]);
+      return /@/.test(mail) ? mail : '';
+    }
+  }
+  return '';
+}
+
 /**
  * Baut das Wochenrapport-PDF (analog Papierformular EIT.swiss):
- * Stundentabelle pro Auftrag, Protokoll Arbeitszeiten (Beginn/Pause/Ende, GAV
+ * Stundentabelle pro Auftrag, Protokoll Arbeitszeiten (Beginn/Pausen/Ende, GAV
  * Art. 20/28 bzw. ArG) und die Unterschrift des Mitarbeiters. Ablage im
- * Drive-Ordner "Wochenrapport PDFs", Rückgabe: Datei-URL.
+ * Drive-Ordner "Wochenrapport PDFs", Rückgabe: das Drive-File.
  */
 function createRapportPdf_(payload, entries) {
   var monday = parseAnyDate_(payload.von) || mondayOf_(new Date());
@@ -234,7 +271,7 @@ function createRapportPdf_(payload, entries) {
   var folderName = 'Wochenrapport PDFs';
   var it = DriveApp.getFoldersByName(folderName);
   var folder = it.hasNext() ? it.next() : DriveApp.createFolder(folderName);
-  return folder.createFile(pdf).getUrl();
+  return folder.createFile(pdf);   // File-Objekt; URL/Blob zieht der Aufrufer
 }
 
 function esc_(s) {
