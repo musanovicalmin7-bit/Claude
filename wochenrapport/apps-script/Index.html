@@ -85,14 +85,16 @@
 
   /* ---- Protokoll Arbeitszeiten (GAV) ---- */
   .prot{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:6px 12px 12px; }
-  .prothead,.protrow{ display:grid; grid-template-columns:64px 1fr 1fr 1fr 1fr; gap:6px; align-items:center; }
+  .prothead,.protrow{ display:grid; grid-template-columns:52px 1fr 1fr 1fr 1fr; gap:6px; align-items:center; }
   .prothead{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft);
-    padding:8px 0 4px; }
+    padding:8px 0 4px; text-align:center; }
+  .prothead span:first-child{ text-align:left; }
   .protrow{ padding:5px 0; border-top:1px solid var(--paper); }
   .protrow .pd{ font-size:14px; font-weight:700; }
   .protrow .pd small{ display:block; font-weight:400; font-size:11px; color:var(--ink-soft); }
-  .protrow input{ width:100%; padding:9px 4px; font:inherit; font-size:15px; text-align:center;
+  .protrow input{ width:100%; padding:8px 2px; font:inherit; font-size:14px; text-align:center;
     border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); }
+  .pcell{ display:flex; flex-direction:column; gap:3px; }
   .protempty{ padding:12px 4px; color:var(--ink-soft); font-size:14px; }
 
   /* ---- Senden ---- */
@@ -177,7 +179,7 @@
 
     <div class="block-label">Arbeitszeiten (Beginn · Pause · Ende)</div>
     <div class="prot" id="prot">
-      <div class="prothead"><span>Tag</span><span>Beginn</span><span>Pause von</span><span>Pause bis</span><span>Ende</span></div>
+      <div class="prothead"><span>Tag</span><span>Beginn</span><span>Znüni</span><span>Mittag</span><span>Ende</span></div>
       <div id="protRows"><div class="protempty">Erscheint automatisch, sobald Tage angetippt sind.</div></div>
     </div>
 
@@ -344,11 +346,12 @@
   function minToTime(min){ min=Math.max(0,Math.min(23*60+59,Math.round(min)));
     return ("0"+Math.floor(min/60)).slice(-2)+":"+("0"+(min%60)).slice(-2); }
   function protDefaults(hours){
-    var start=7*60, pv=12*60, pb=13*60;
-    var pause=(hours>5.5)?60:0;           // GAV Art. 28: Mittagspause bei ganzen Tagen
-    if(!pause){ pv=0; pb=0; }
-    return { start:minToTime(start),
-             pv:pause?minToTime(pv):"", pb:pause?minToTime(pb):"",
+    // Standard-Tagesablauf: 07:00 Beginn, Znüni 09:00–09:30, Mittag 12:00–13:00.
+    // 8-h-Tag ergibt damit Ende 16:30. Kurze Tage: nur Znüni bzw. keine Pause.
+    var start=7*60, pause=0, p1v="",p1b="",p2v="",p2b="";
+    if(hours>5.5){ p1v="09:00"; p1b="09:30"; p2v="12:00"; p2b="13:00"; pause=90; }
+    else if(hours>2.5){ p1v="09:00"; p1b="09:30"; pause=30; }
+    return { start:minToTime(start), p1v:p1v, p1b:p1b, p2v:p2v, p2b:p2b,
              ende:minToTime(start+hours*60+pause) };
   }
   function renderProtokoll(t){
@@ -357,14 +360,16 @@
     for(var i=0;i<7;i++){
       if(t[i]>0){
         any=true;
-        if(!PROT[i]) PROT[i]=protDefaults(t[i]);
-        var d=addDays(weekStart,i);
+        if(!PROT[i]||PROT[i].p1v===undefined) PROT[i]=protDefaults(t[i]);
+        var p=PROT[i], d=addDays(weekStart,i);
         html+='<div class="protrow" data-i="'+i+'">'+
           '<span class="pd">'+DW[i]+'<small>'+chShort(d)+'</small></span>'+
-          '<input type="time" data-f="start" value="'+PROT[i].start+'">'+
-          '<input type="time" data-f="pv" value="'+PROT[i].pv+'">'+
-          '<input type="time" data-f="pb" value="'+PROT[i].pb+'">'+
-          '<input type="time" data-f="ende" value="'+PROT[i].ende+'">'+
+          '<input type="time" data-f="start" value="'+p.start+'">'+
+          '<span class="pcell"><input type="time" data-f="p1v" value="'+p.p1v+'">'+
+            '<input type="time" data-f="p1b" value="'+p.p1b+'"></span>'+
+          '<span class="pcell"><input type="time" data-f="p2v" value="'+p.p2v+'">'+
+            '<input type="time" data-f="p2b" value="'+p.p2b+'"></span>'+
+          '<input type="time" data-f="ende" value="'+p.ende+'">'+
           "</div>";
       } else { delete PROT[i]; }
     }
@@ -377,17 +382,23 @@
     PROT[i][e.target.getAttribute("data-f")]=e.target.value;
     saveDraft();
   });
+  function pauseMin(p){
+    var total=0;
+    [["p1v","p1b"],["p2v","p2b"]].forEach(function(k){
+      var v=timeToMin(p[k[0]]), b=timeToMin(p[k[1]]);
+      if(v!==null&&b!==null&&b>v) total+=b-v;
+    });
+    return total;
+  }
   function protokollCheck(t){
-    // Plausibilität: (Ende - Beginn - Pause) sollte den gebuchten Stunden entsprechen
+    // Plausibilität: (Ende - Beginn - Pausen) sollte den gebuchten Stunden entsprechen
     var offDays=[];
     for(var i=0;i<7;i++){
       if(!(t[i]>0)) continue;
       var p=PROT[i]||{};
       var s=timeToMin(p.start), e=timeToMin(p.ende);
       if(s===null||e===null) return { error:"Bitte Beginn und Ende am "+DW[i]+" eintragen." };
-      var pause=0, pv=timeToMin(p.pv), pb=timeToMin(p.pb);
-      if(pv!==null&&pb!==null&&pb>pv) pause=pb-pv;
-      var worked=(e-s-pause)/60;
+      var worked=(e-s-pauseMin(p))/60;
       if(Math.abs(worked-t[i])>0.26) offDays.push(DW[i]+" ("+fmtH(worked)+" h statt "+fmtH(t[i])+" h)");
     }
     return { offDays:offDays };
@@ -491,9 +502,12 @@
     var out=[], t=dayTotals();
     for(var i=0;i<7;i++){
       if(!(t[i]>0)||!PROT[i]) continue;
+      var p=PROT[i];
       out.push({ tag:DW[i], datum:chDate(addDays(weekStart,i)),
-                 start:PROT[i].start||"", pauseVon:PROT[i].pv||"",
-                 pauseBis:PROT[i].pb||"", ende:PROT[i].ende||"", stunden:t[i] });
+                 start:p.start||"",
+                 pause1:(p.p1v&&p.p1b)?(p.p1v+" – "+p.p1b):"",
+                 pause2:(p.p2v&&p.p2b)?(p.p2v+" – "+p.p2b):"",
+                 ende:p.ende||"", stunden:t[i] });
     }
     return out;
   }

@@ -206,14 +206,17 @@ function createRapportPdf_(payload, entries) {
   colTot.forEach(function (v) { h += td('<b>' + num(v) + '</b>', 'text-align:center'); });
   h += td('<b>' + num(tot) + '</b>', 'text-align:right') + '</tr></table>' +
     '<h2 style="font-size:14px;margin:16px 0 6px">Protokoll Arbeitszeiten</h2>' +
-    '<table style="width:60%;border-collapse:collapse"><tr style="background:#EDF3F8">' +
-    td('<b>Tag</b>') + td('<b>Beginn</b>', 'text-align:center') + td('<b>Pause</b>', 'text-align:center') +
+    '<table style="width:75%;border-collapse:collapse"><tr style="background:#EDF3F8">' +
+    td('<b>Tag</b>') + td('<b>Beginn</b>', 'text-align:center') +
+    td('<b>Znüni-Pause</b>', 'text-align:center') + td('<b>Mittagspause</b>', 'text-align:center') +
     td('<b>Ende</b>', 'text-align:center') + td('<b>Stunden</b>', 'text-align:right') + '</tr>';
   (payload.protokoll || []).forEach(function (p) {
-    var pause = (p.pauseVon && p.pauseBis) ? (p.pauseVon + ' – ' + p.pauseBis) : '–';
+    // Abwärtskompatibel: ältere Formularversion lieferte pauseVon/pauseBis (eine Pause)
+    var p1 = p.pause1 || ((p.pauseVon && p.pauseBis) ? (p.pauseVon + ' – ' + p.pauseBis) : '');
+    var p2 = p.pause2 || '';
     h += '<tr>' + td(esc_(p.tag) + ' ' + esc_(p.datum)) + td(esc_(p.start), 'text-align:center') +
-         td(pause, 'text-align:center') + td(esc_(p.ende), 'text-align:center') +
-         td(num(p.stunden), 'text-align:right') + '</tr>';
+         td(p1 ? esc_(p1) : '–', 'text-align:center') + td(p2 ? esc_(p2) : '–', 'text-align:center') +
+         td(esc_(p.ende), 'text-align:center') + td(num(p.stunden), 'text-align:right') + '</tr>';
   });
   h += '</table>';
 
