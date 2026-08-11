@@ -69,10 +69,10 @@ function ss_() { return SpreadsheetApp.getActive(); }
 /** Legt fehlende Reiter mit Kopfzeilen an (idempotent). */
 function ensureSheets_() {
   var ss = ss_();
-  if (!ss.getSheetByName(SHEET_RAPPORTE)) {
-    ss.insertSheet(SHEET_RAPPORTE).appendRow(
-      ['Zeitstempel', 'Mitarbeiter Nr.', 'Mitarbeiter', 'Woche vom', 'Rapport Nr.', 'Datum', 'Auftrag Nr.', 'Stunden', 'Unterschrift']);
-  }
+  var rapHeader = ['Zeitstempel', 'Mitarbeiter Nr.', 'Mitarbeiter', 'Woche vom', 'Rapport Nr.', 'Datum', 'Auftrag Nr.', 'Stunden', 'Rapport-PDF (signiert)'];
+  var rap = ss.getSheetByName(SHEET_RAPPORTE);
+  if (!rap) rap = ss.insertSheet(SHEET_RAPPORTE);
+  rap.getRange(1, 1, 1, rapHeader.length).setValues([rapHeader]).setFontWeight('bold');
   if (!ss.getSheetByName(SHEET_PROJEKTE)) {
     ss.insertSheet(SHEET_PROJEKTE).appendRow(['Projektnummer (exakt wie Messerli)', 'Bezeichnung']);
   }
@@ -130,21 +130,12 @@ function submitRapport(payload) {
   });
   if (!entries.length) throw new Error('Keine Stunden erfasst.');
 
-  // Unterschrift (PNG als Data-URL) in Drive ablegen; im Sheet steht der Link.
-  var signUrl = '';
-  var m = /^data:image\/(png|jpeg);base64,(.+)$/.exec(String(payload.unterschrift || ''));
-  if (m) {
-    try {
-      var folderName = 'Wochenrapport Unterschriften';
-      var it = DriveApp.getFoldersByName(folderName);
-      var folder = it.hasNext() ? it.next() : DriveApp.createFolder(folderName);
-      var fname = 'Unterschrift_' + String(payload.ma).replace(/[^\wÀ-ÿ]+/g, '_') +
-                  '_' + String(payload.von || '') + '.png';
-      var blob = Utilities.newBlob(Utilities.base64Decode(m[2]), 'image/' + m[1], fname);
-      signUrl = folder.createFile(blob).getUrl();
-    } catch (err) {
-      signUrl = 'Fehler beim Speichern: ' + err;
-    }
+  // GAV-konformes, unterschriebenes Wochenrapport-PDF erzeugen und in Drive archivieren.
+  var pdfUrl = '';
+  try {
+    pdfUrl = createRapportPdf_(payload, entries);
+  } catch (err) {
+    pdfUrl = 'PDF-Fehler: ' + err;
   }
 
   var lock = LockService.getScriptLock();
@@ -156,13 +147,97 @@ function submitRapport(payload) {
     var rows = entries.map(function (e) {
       return [now, String(payload.maNr || ''), String(payload.ma), String(payload.von || ''),
               String(payload.rapnr || ''), String(e.datum || ''), String(e.auftrag), Number(e.stunden),
-              signUrl];
+              pdfUrl];
     });
     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
     return { ok: true, count: rows.length };
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Baut das Wochenrapport-PDF (analog Papierformular EIT.swiss):
+ * Stundentabelle pro Auftrag, Protokoll Arbeitszeiten (Beginn/Pause/Ende, GAV
+ * Art. 20/28 bzw. ArG) und die Unterschrift des Mitarbeiters. Ablage im
+ * Drive-Ordner "Wochenrapport PDFs", Rückgabe: Datei-URL.
+ */
+function createRapportPdf_(payload, entries) {
+  var monday = parseAnyDate_(payload.von) || mondayOf_(new Date());
+  monday = mondayOf_(monday);
+  var days = [], DW = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(monday); d.setDate(d.getDate() + i); days.push(d);
+  }
+  var kw = isoWeek_(monday);
+
+  // Stunden je Auftrag x Tag gruppieren
+  var byAuftrag = {}, order = [], colTot = [0, 0, 0, 0, 0, 0, 0], tot = 0;
+  entries.forEach(function (e) {
+    var idx = -1;
+    for (var i = 0; i < 7; i++) { if (fmtChDate_(days[i]) === String(e.datum)) { idx = i; break; } }
+    if (idx < 0) return;
+    var key = String(e.auftrag);
+    if (!byAuftrag[key]) { byAuftrag[key] = [0, 0, 0, 0, 0, 0, 0]; order.push(key); }
+    byAuftrag[key][idx] += Number(e.stunden);
+    colTot[idx] += Number(e.stunden); tot += Number(e.stunden);
+  });
+
+  function td(v, style) { return '<td style="border:1px solid #999;padding:4px 6px;' + (style || '') + '">' + v + '</td>'; }
+  function num(v) { return v ? String(Math.round(v * 100) / 100).replace('.', ',') : ''; }
+
+  var h = '<html><head><meta charset="utf-8"></head><body style="font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#000">' +
+    '<h1 style="font-size:20px;border-bottom:3px solid #2E5E8C;padding-bottom:6px;margin-bottom:4px">Wochenrapport</h1>' +
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:10px"><tr>' +
+    '<td style="padding:2px 0"><b>Mitarbeiter:</b> ' + esc_(payload.ma) + (payload.maNr ? ' (Nr. ' + esc_(payload.maNr) + ')' : '') + '</td>' +
+    '<td style="padding:2px 0"><b>Woche:</b> ' + fmtChDate_(days[0]) + ' – ' + fmtChDate_(days[6]) + '</td>' +
+    '<td style="padding:2px 0"><b>KW:</b> ' + kw + '</td></tr></table>' +
+    '<table style="width:100%;border-collapse:collapse"><tr style="background:#EDF3F8">' +
+    td('<b>Auftrag Nr. / Absenz</b>');
+  days.forEach(function (d, i) { h += td('<b>' + DW[i] + '</b><br>' + ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '.', 'text-align:center'); });
+  h += td('<b>Total</b>', 'text-align:right') + '</tr>';
+  order.forEach(function (key) {
+    var row = byAuftrag[key], rt = 0;
+    h += '<tr>' + td(esc_(key));
+    row.forEach(function (v) { rt += v; h += td(num(v), 'text-align:center'); });
+    h += td('<b>' + num(rt) + '</b>', 'text-align:right') + '</tr>';
+  });
+  h += '<tr style="background:#EDF3F8">' + td('<b>Total Stunden</b>');
+  colTot.forEach(function (v) { h += td('<b>' + num(v) + '</b>', 'text-align:center'); });
+  h += td('<b>' + num(tot) + '</b>', 'text-align:right') + '</tr></table>' +
+    '<h2 style="font-size:14px;margin:16px 0 6px">Protokoll Arbeitszeiten</h2>' +
+    '<table style="width:60%;border-collapse:collapse"><tr style="background:#EDF3F8">' +
+    td('<b>Tag</b>') + td('<b>Beginn</b>', 'text-align:center') + td('<b>Pause</b>', 'text-align:center') +
+    td('<b>Ende</b>', 'text-align:center') + td('<b>Stunden</b>', 'text-align:right') + '</tr>';
+  (payload.protokoll || []).forEach(function (p) {
+    var pause = (p.pauseVon && p.pauseBis) ? (p.pauseVon + ' – ' + p.pauseBis) : '–';
+    h += '<tr>' + td(esc_(p.tag) + ' ' + esc_(p.datum)) + td(esc_(p.start), 'text-align:center') +
+         td(pause, 'text-align:center') + td(esc_(p.ende), 'text-align:center') +
+         td(num(p.stunden), 'text-align:right') + '</tr>';
+  });
+  h += '</table>';
+
+  var m = /^data:image\/(png|jpeg);base64,(.+)$/.exec(String(payload.unterschrift || ''));
+  h += '<table style="width:100%;margin-top:26px"><tr>' +
+    '<td style="width:50%;vertical-align:bottom;padding:2px 0">Erfasst am: ' + fmtChDate_(new Date()) + '</td>' +
+    '<td style="width:50%;vertical-align:bottom">' +
+    (m ? '<img src="' + payload.unterschrift + '" style="height:60px"><br>' : '<br><br>') +
+    '<span style="border-top:1px solid #000;display:inline-block;padding-top:3px;min-width:220px">Unterschrift Mitarbeiter</span></td></tr></table>' +
+    '</body></html>';
+
+  var name = 'Wochenrapport_' + days[0].getFullYear() + '_KW' + ('0' + kw).slice(-2) + '_' +
+             String(payload.ma).replace(/[^\wÀ-ÿ]+/g, '_') + '.pdf';
+  var pdf = Utilities.newBlob(h, 'text/html', 'r.html').getAs('application/pdf').setName(name);
+  var folderName = 'Wochenrapport PDFs';
+  var it = DriveApp.getFoldersByName(folderName);
+  var folder = it.hasNext() ? it.next() : DriveApp.createFolder(folderName);
+  return folder.createFile(pdf).getUrl();
+}
+
+function esc_(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
 }
 
 /* ================= Kontroll-Übersicht ================= */
