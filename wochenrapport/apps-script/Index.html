@@ -409,11 +409,14 @@
         e.preventDefault(); active=parseInt(el.getAttribute("data-i"),10); choose();
       });
     }
+    function normNr(s){ return String(s||"").toLowerCase().replace(/[\s.\-'’]/g,""); }
     function candidates(q){
-      q=(q||"").trim().toLowerCase(); var out=[];
+      var raw=(q||"").trim().toLowerCase(), qn=normNr(q); var out=[];
+      // Nummern-Suche ignoriert Leerzeichen/Bindestriche/Punkte: "2023 501 784",
+      // "2023-501-784" und "2023501784" finden alle denselben Auftrag.
       PROJECTS.forEach(function(p){ var nr=String(p.nr), lb=String(p.label||"");
-        if(!q||nr.toLowerCase().indexOf(q)>=0||lb.toLowerCase().indexOf(q)>=0) out.push({nr:nr,label:lb}); });
-      ABSENCES.forEach(function(a){ if(!q||a.toLowerCase().indexOf(q)>=0) out.push({nr:a,label:"Absenz"}); });
+        if(!raw||normNr(nr).indexOf(qn)>=0||lb.toLowerCase().indexOf(raw)>=0) out.push({nr:nr,label:lb}); });
+      ABSENCES.forEach(function(a){ if(!raw||a.toLowerCase().indexOf(raw)>=0) out.push({nr:a,label:"Absenz"}); });
       return out.slice(0,50);
     }
     function render(){
