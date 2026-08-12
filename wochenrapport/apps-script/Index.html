@@ -223,7 +223,8 @@
   var PROJECTS=[], NAMES=[];
   // Fallback, falls der Kostenarten-Reiter leer ist; wird beim Laden durch die Serverliste ersetzt.
   var ABSENCES=["Unfall","Krank","Ferien Bezug","Schule","Weiterbildung"];
-  var KEY_NAME="zeit-name", KEY_DRAFT="zeit-draft-woche";
+  var KEY_DRAFT="zeit-draft-woche";
+  var CURRENT=null;                     // gewählter Name – gilt nur für diese Sitzung (Startschirm = Namenswahl)
   var DW=["Mo","Di","Mi","Do","Fr","Sa","So"];
   var weekStart=null;                    // ISO des Montags
 
@@ -240,8 +241,8 @@
   function showErr(t){ var e=$("err"); e.textContent=t; e.classList.add("show");
     setTimeout(function(){ e.classList.remove("show"); },5000); }
 
-  /* ---------- Name ---------- */
-  function savedName(){ try{ return JSON.parse(localStorage.getItem(KEY_NAME)); }catch(e){ return null; } }
+  /* ---------- Name (bewusst NICHT gespeichert – Startschirm ist immer die Namenswahl) ---------- */
+  function savedName(){ return CURRENT; }
   function renderNameList(q){
     q=(q||"").toLowerCase();
     var html="";
@@ -250,10 +251,7 @@
     });
     $("nameList").innerHTML=html||'<div class="acempty">Kein Name gefunden.</div>';
   }
-  function pickName(n){
-    try{ localStorage.setItem(KEY_NAME,JSON.stringify(n)); }catch(e){}
-    showMain();
-  }
+  function pickName(n){ CURRENT=n; showMain(); }
 
   /* ---------- Wochen-Auswahl: diese + letzte Woche ---------- */
   function renderWeeks(){
@@ -571,7 +569,7 @@
     var b=e.target.closest?e.target.closest(".namebtn"):null; if(!b) return;
     pickName(NAMES[parseInt(b.getAttribute("data-i"),10)]);
   });
-  $("changeName").addEventListener("click",showName);
+  $("changeName").addEventListener("click",function(){ CURRENT=null; showName(); });
   $("weeks").addEventListener("click",function(e){
     var b=e.target.closest?e.target.closest(".week"):null; if(!b) return;
     weekStart=b.getAttribute("data-iso"); renderWeeks();
@@ -587,7 +585,9 @@
   $("signClear").addEventListener("click",SIGN.clearPad);
   $("signOk").addEventListener("click",SIGN.confirm);
   $("again").addEventListener("click",function(){
-    $("cards").innerHTML=""; PROT={}; weekStart=isoDate(mondayOf(new Date())); showMain();
+    // zurück zum Startschirm (Namenswahl) – wichtig bei geteilten Geräten
+    $("cards").innerHTML=""; PROT={}; weekStart=isoDate(mondayOf(new Date()));
+    CURRENT=null; showName();
   });
   window.addEventListener("scroll",AC.reposition,true); window.addEventListener("resize",AC.reposition);
 
@@ -596,7 +596,7 @@
     PROJECTS=data.projects||[]; NAMES=data.names||[];
     if(data.absenzen&&data.absenzen.length) ABSENCES=data.absenzen;
     $("loading").classList.remove("show");
-    if(savedName()) showMain(); else showName();
+    showName();                          // Startschirm ist immer die Namenswahl
   }).withFailureHandler(function(err){
     $("loading").className="msg err show";
     $("loading").textContent="Konnte nicht laden: "+(err&&err.message?err.message:err);
