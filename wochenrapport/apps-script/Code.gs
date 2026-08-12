@@ -25,7 +25,7 @@ var SOLL_STUNDEN      = 40;
  * Empfänger, der JEDEN abgesendeten Wochenrapport als PDF-Anhang erhält
  * (z. B. Büro/Administration). Leer lassen = kein automatischer Versand.
  */
-var RAPPORT_EMPFAENGER = 'musanovic.almin7@gmail.com';
+var RAPPORT_EMPFAENGER = 'elektroscherzingerag@gmail.com';
 
 /**
  * Absenzarten mit Kostenart-Nummern aus MesserliPROJEKT (Stand 08/2026).
