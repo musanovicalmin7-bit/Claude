@@ -22,6 +22,12 @@ var SHEET_KOSTEN     = 'Kostenarten';
 var SOLL_STUNDEN      = 40;
 
 /**
+ * Empfänger, der JEDEN abgesendeten Wochenrapport als PDF-Anhang erhält
+ * (z. B. Büro/Administration). Leer lassen = kein automatischer Versand.
+ */
+var RAPPORT_EMPFAENGER = 'musanovic.almin7@gmail.com';
+
+/**
  * Absenzarten mit Kostenart-Nummern aus MesserliPROJEKT (Stand 08/2026).
  * Wird beim Einrichten in den Reiter "Kostenarten" geschrieben und kann
  * dort jederzeit angepasst werden – das Sheet ist die führende Quelle.
@@ -142,16 +148,31 @@ function submitRapport(payload) {
     pdfUrl = 'PDF-Fehler: ' + err;
   }
 
-  // Optional: PDF per E-Mail zustellen, wenn im Reiter "Mitarbeiter" (Spalte C)
-  // eine Adresse hinterlegt ist.
+  // E-Mail-Zustellung des PDFs:
+  //  1. an die Administration (RAPPORT_EMPFAENGER), wenn konfiguriert
+  //  2. an den Mitarbeiter, wenn im Reiter "Mitarbeiter" (Spalte C) eine Adresse steht
   var mailInfo = '';
   if (pdfFile) {
+    var subject = pdfFile.getName().replace('.pdf', '').replace(/_/g, ' ');
+    if (RAPPORT_EMPFAENGER) {
+      try {
+        MailApp.sendEmail({
+          to: RAPPORT_EMPFAENGER,
+          subject: subject,
+          body: 'Neuer Wochenrapport eingegangen von ' + payload.ma +
+                (payload.maNr ? ' (Nr. ' + payload.maNr + ')' : '') + '.\n\n' +
+                'PDF im Anhang und im Drive-Ordner "Wochenrapport PDFs".\n' +
+                'Diese Nachricht wurde automatisch erstellt.',
+          attachments: [pdfFile.getBlob()]
+        });
+      } catch (err) {}
+    }
     try {
       var email = emailForName_(payload.ma);
       if (email) {
         MailApp.sendEmail({
           to: email,
-          subject: pdfFile.getName().replace('.pdf', '').replace(/_/g, ' '),
+          subject: subject,
           body: 'Hallo ' + payload.ma + '\n\nIm Anhang dein unterschriebener Wochenrapport.\n\n' +
                 'Diese Nachricht wurde automatisch erstellt.',
           attachments: [pdfFile.getBlob()]
