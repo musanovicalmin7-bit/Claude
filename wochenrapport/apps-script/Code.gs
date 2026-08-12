@@ -52,6 +52,17 @@ var ABSENZEN = [
   { nr: '017', label: 'Diverse Absenzen' }
 ];
 
+/**
+ * Test: schickt eine Probemail an RAPPORT_EMPFAENGER.
+ * Im Editor ausführen – beim ersten Mal fragt Google nach der
+ * E-Mail-Berechtigung ("E-Mails in deinem Namen senden") → zulassen.
+ */
+function testMail() {
+  if (!RAPPORT_EMPFAENGER) throw new Error('RAPPORT_EMPFAENGER ist leer.');
+  MailApp.sendEmail(RAPPORT_EMPFAENGER, 'Test Wochenrapport',
+    'Testmail vom Wochenrapport-Script. Wenn diese Mail ankommt, funktioniert der Versand.');
+}
+
 /** Menü im Sheet. */
 function onOpen() {
   SpreadsheetApp.getUi()
