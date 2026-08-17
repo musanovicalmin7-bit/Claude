@@ -93,7 +93,8 @@ function ensureSheets_() {
   if (!ss.getSheetByName(SHEET_PROJEKTE)) {
     ss.insertSheet(SHEET_PROJEKTE).appendRow(['Projektnummer (exakt wie Messerli)', 'Bezeichnung']);
   }
-  var mitHeader = ['Mitarbeiter Nr. (exakt wie Messerli)', 'Name', 'E-Mail (optional, für PDF-Zustellung)'];
+  var mitHeader = ['Mitarbeiter Nr. (exakt wie Messerli)', 'Name', 'E-Mail (optional, für PDF-Zustellung)',
+                   'Kostenart Arbeit (je nach Funktion: Service/Installateur/Monteur/Lehrling …)'];
   var mit = ss.getSheetByName(SHEET_MITARBEITER);
   if (!mit) mit = ss.insertSheet(SHEET_MITARBEITER);
   mit.getRange(1, 1, 1, mitHeader.length).setValues([mitHeader]).setFontWeight('bold');
@@ -430,7 +431,7 @@ function exportMesserli() {
   var bis = askDate_(ui, 'Export bis (TT.MM.JJJJ)'); if (bis === null) return;
 
   var kosten = readKostenarten_();
-  var mitByName = readMitarbeiter_();
+  var mit = readMitarbeiter_();
 
   var data = ss_().getSheetByName(SHEET_RAPPORTE).getDataRange().getValues();
   var lines = ['Datum;Projektnummer;Mitarbeiter Nummer;Mitarbeiter;Bemerkung;Kostenart-Nummer;Dauer'];
@@ -444,14 +445,17 @@ function exportMesserli() {
     if (!datum || !auftrag || !(stunden > 0)) continue;
     if (datum < von || datum > bis) continue;
 
-    if (!maNr) maNr = mitByName[ma.toLowerCase()] || '';
+    var rec = mit[ma.toLowerCase()] || {};
+    if (!maNr) maNr = rec.nr || '';
     if (!maNr) warn['Mitarbeiter-Nr. fehlt: ' + ma] = 1;
 
     var istAbsenz = kosten.absenz.hasOwnProperty(auftrag);
     var projektnummer = istAbsenz ? '' : auftrag;
     var bemerkung = istAbsenz ? auftrag : '';
-    var kostenart = istAbsenz ? kosten.absenz[auftrag] : kosten.arbeit;
-    if (!kostenart) warn['Kostenart-Nummer fehlt für: ' + (istAbsenz ? auftrag : 'Arbeit')] = 1;
+    // Produktive Stunden: Kostenart je Mitarbeiter (Spalte D im Mitarbeiter-Reiter),
+    // Fallback auf die Zeile "Arbeit" im Kostenarten-Reiter.
+    var kostenart = istAbsenz ? kosten.absenz[auftrag] : (rec.kostenart || kosten.arbeit);
+    if (!kostenart) warn['Kostenart fehlt für: ' + (istAbsenz ? auftrag : ('Arbeit bei ' + ma))] = 1;
 
     lines.push([fmtChDate_(datum), projektnummer, maNr, ma, bemerkung, kostenart, toHHMM_(stunden)]
       .map(csvCell_).join(';'));
@@ -483,12 +487,13 @@ function readKostenarten_() {
   return out;
 }
 
+/** name (klein) -> { nr, kostenart } aus dem Mitarbeiter-Reiter (Spalten A, B, D). */
 function readMitarbeiter_() {
   var map = {};
   var v = ss_().getSheetByName(SHEET_MITARBEITER).getDataRange().getValues();
   for (var i = 1; i < v.length; i++) {
-    var nr = trim_(v[i][0]), name = trim_(v[i][1]);
-    if (name && nr) map[name.toLowerCase()] = nr;
+    var nr = trim_(v[i][0]), name = trim_(v[i][1]), kostenart = trim_(v[i][3]);
+    if (name) map[name.toLowerCase()] = { nr: nr, kostenart: kostenart };
   }
   return map;
 }
