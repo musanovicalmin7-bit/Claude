@@ -439,7 +439,11 @@ function exportMesserli() {
 
   for (var i = 1; i < data.length; i++) {
     var maNr = trim_(data[i][1]), ma = trim_(data[i][2]);
-    var datum = parseChDate_(trim_(data[i][5]));
+    // Sheets wandelt "11.08.2026" beim Schreiben oft in ein Date-Objekt um –
+    // parseAnyDate_ akzeptiert beides; danach auf 12:00 normalisieren, damit
+    // der Von/Bis-Vergleich (ebenfalls 12:00) den Randtag nicht ausschliesst.
+    var datum = parseAnyDate_(data[i][5]);
+    if (datum) datum = new Date(datum.getFullYear(), datum.getMonth(), datum.getDate(), 12, 0, 0);
     var auftrag = trim_(data[i][6]);
     var stunden = Number(data[i][7]);
     if (!datum || !auftrag || !(stunden > 0)) continue;
