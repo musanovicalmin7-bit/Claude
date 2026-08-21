@@ -96,6 +96,12 @@
     border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); }
   .pcell{ display:flex; flex-direction:column; gap:3px; }
   .protempty{ padding:12px 4px; color:var(--ink-soft); font-size:14px; }
+  .addp{ display:block; margin-top:3px; padding:2px 6px; font:inherit; font-size:10px; color:var(--blau);
+    background:none; border:1px dashed var(--line); border-radius:6px; cursor:pointer; }
+  .protrow.extra{ border-top:0; padding-top:0; }
+  .protrow.extra .pd3{ font-size:11px; color:var(--ink-soft); white-space:nowrap; }
+  .protrow.extra .rm3{ border:0; background:none; color:var(--ink-soft); font-size:12px;
+    cursor:pointer; padding:2px 5px; }
 
   /* ---- Senden ---- */
   .sendbar{ position:fixed; left:0; right:0; bottom:0; padding:12px 14px calc(12px + env(safe-area-inset-bottom));
@@ -166,6 +172,21 @@
     <h2>Wer bist du?</h2>
     <input id="nameSearch" placeholder="Name tippen …" autocomplete="off">
     <div id="nameList"></div>
+  </section>
+
+  <!-- Schritt 1b: PIN (nur wenn für den Namen ein PIN hinterlegt ist) -->
+  <section id="pinScreen" style="display:none">
+    <h2>PIN eingeben</h2>
+    <p id="pinName" style="color:var(--ink-soft);margin:0 0 12px"></p>
+    <input id="pinInput" type="tel" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="••••"
+      style="width:100%;padding:14px;font-size:26px;text-align:center;letter-spacing:8px;
+             border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)">
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button id="pinBack" type="button" style="flex:1;padding:15px;font:inherit;font-size:16px;font-weight:700;
+        border-radius:12px;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);cursor:pointer">Zurück</button>
+      <button id="pinOk" type="button" style="flex:2;padding:15px;font:inherit;font-size:16px;font-weight:700;
+        border-radius:12px;border:0;background:var(--blau);color:#fff;cursor:pointer">Weiter</button>
+    </div>
   </section>
 
   <!-- Hauptschirm -->
@@ -251,7 +272,34 @@
     });
     $("nameList").innerHTML=html||'<div class="acempty">Kein Name gefunden.</div>';
   }
-  function pickName(n){ CURRENT=n; showMain(); }
+  var PENDING=null;                     // Name, der noch auf PIN-Eingabe wartet
+  function pickName(n){
+    if(n.pin){ PENDING=n; showPin(); }
+    else { CURRENT=n; showMain(); }
+  }
+  function showPin(){
+    ["nameScreen","mainScreen","doneScreen"].forEach(function(id){ $(id).style.display="none"; });
+    $("sendbar").style.display="none"; $("who").style.display="none";
+    $("pinScreen").style.display="";
+    $("pinName").textContent=PENDING?PENDING.name:"";
+    $("pinInput").value=""; $("pinInput").focus();
+  }
+  function submitPin(){
+    var val=$("pinInput").value.trim();
+    if(!val){ showErr("Bitte PIN eingeben."); return; }
+    var btn=$("pinOk"); btn.disabled=true; btn.textContent="Prüfe …";
+    google.script.run
+      .withSuccessHandler(function(res){
+        btn.disabled=false; btn.textContent="Weiter";
+        if(res&&res.ok){ CURRENT={nr:PENDING.nr,name:PENDING.name,pinValue:val}; PENDING=null; showMain(); }
+        else { showErr("Falscher PIN – bitte nochmals versuchen."); $("pinInput").value=""; $("pinInput").focus(); }
+      })
+      .withFailureHandler(function(err){
+        btn.disabled=false; btn.textContent="Weiter";
+        showErr("Prüfung fehlgeschlagen: "+(err&&err.message?err.message:err));
+      })
+      .checkPin(PENDING.name,val);
+  }
 
   /* ---------- Wochen-Auswahl: diese + letzte Woche ---------- */
   function renderWeeks(){
@@ -367,7 +415,8 @@
         if(!PROT[i]||PROT[i].p1v===undefined) PROT[i]=protDefaults(t[i]);
         var p=PROT[i], d=addDays(weekStart,i);
         html+='<div class="protrow" data-i="'+i+'">'+
-          '<span class="pd">'+DW[i]+'<small>'+chShort(d)+'</small></span>'+
+          '<span class="pd">'+DW[i]+'<small>'+chShort(d)+'</small>'+
+            (p.p3on?'':'<button type="button" class="addp" data-i="'+i+'">+ Pause</button>')+'</span>'+
           '<input type="time" data-f="start" value="'+p.start+'">'+
           '<span class="pcell"><input type="time" data-f="p1v" value="'+p.p1v+'">'+
             '<input type="time" data-f="p1b" value="'+p.p1b+'"></span>'+
@@ -375,6 +424,15 @@
             '<input type="time" data-f="p2b" value="'+p.p2b+'"></span>'+
           '<input type="time" data-f="ende" value="'+p.ende+'">'+
           "</div>";
+        if(p.p3on){
+          html+='<div class="protrow extra" data-i="'+i+'">'+
+            '<span class="pd3">3. Pause<button type="button" class="rm3" data-i="'+i+'" aria-label="Pause entfernen">✕</button></span>'+
+            '<span></span>'+
+            '<input type="time" data-f="p3v" value="'+(p.p3v||"")+'">'+
+            '<input type="time" data-f="p3b" value="'+(p.p3b||"")+'">'+
+            '<span></span>'+
+            "</div>";
+        }
       } else { delete PROT[i]; }
     }
     box.innerHTML=any?html:'<div class="protempty">Erscheint automatisch, sobald Tage angetippt sind.</div>';
@@ -386,9 +444,17 @@
     PROT[i][e.target.getAttribute("data-f")]=e.target.value;
     saveDraft();
   });
+  document.addEventListener("click",function(e){
+    var add=e.target.closest?e.target.closest(".addp"):null;
+    if(add){ var i=parseInt(add.getAttribute("data-i"),10);
+      if(PROT[i]){ PROT[i].p3on=true; renderProtokoll(); saveDraft(); } return; }
+    var rm=e.target.closest?e.target.closest(".rm3"):null;
+    if(rm){ var j=parseInt(rm.getAttribute("data-i"),10);
+      if(PROT[j]){ PROT[j].p3on=false; PROT[j].p3v=""; PROT[j].p3b=""; renderProtokoll(); saveDraft(); } }
+  });
   function pauseMin(p){
     var total=0;
-    [["p1v","p1b"],["p2v","p2b"]].forEach(function(k){
+    [["p1v","p1b"],["p2v","p2b"],["p3v","p3b"]].forEach(function(k){
       var v=timeToMin(p[k[0]]), b=timeToMin(p[k[1]]);
       if(v!==null&&b!==null&&b>v) total+=b-v;
     });
@@ -511,6 +577,7 @@
                  start:p.start||"",
                  pause1:(p.p1v&&p.p1b)?(p.p1v+" – "+p.p1b):"",
                  pause2:(p.p2v&&p.p2b)?(p.p2v+" – "+p.p2b):"",
+                 pause3:(p.p3on&&p.p3v&&p.p3b)?(p.p3v+" – "+p.p3b):"",
                  ende:p.ende||"", stunden:t[i] });
     }
     return out;
@@ -537,19 +604,19 @@
         showErr("Senden fehlgeschlagen: "+(err&&err.message?err.message:err)+" – nochmals versuchen.");
       })
       .submitRapport({ ma:me.name, maNr:me.nr||"", von:weekStart, rapnr:"", entries:entries,
-                       protokoll:protokollPayload(), unterschrift:unterschrift||"" });
+                       pin:me.pinValue||"", protokoll:protokollPayload(), unterschrift:unterschrift||"" });
   }
 
   /* ---------- Screens ---------- */
   function showName(){
-    $("nameScreen").style.display=""; $("mainScreen").style.display="none";
+    $("nameScreen").style.display=""; $("mainScreen").style.display="none"; $("pinScreen").style.display="none";
     $("sendbar").style.display="none"; $("doneScreen").style.display="none"; $("who").style.display="none";
     $("nameSearch").value=""; renderNameList(""); $("nameSearch").focus();
   }
   function showMain(){
     var me=savedName(); if(!me){ showName(); return; }
     $("whoName").textContent=me.name; $("who").style.display="";
-    $("nameScreen").style.display="none"; $("doneScreen").style.display="none";
+    $("nameScreen").style.display="none"; $("doneScreen").style.display="none"; $("pinScreen").style.display="none";
     $("mainScreen").style.display=""; $("sendbar").style.display="";
     if(!weekStart) weekStart=isoDate(mondayOf(new Date()));
     renderWeeks();
@@ -580,6 +647,9 @@
     paintWeekTotal(); saveDraft();
   });
   $("addCard").addEventListener("click",function(){ makeCard(); });
+  $("pinBack").addEventListener("click",function(){ PENDING=null; showName(); });
+  $("pinOk").addEventListener("click",submitPin);
+  $("pinInput").addEventListener("keydown",function(e){ if(e.key==="Enter") submitPin(); });
   $("send").addEventListener("click",submit);
   $("signCancel").addEventListener("click",SIGN.close);
   $("signClear").addEventListener("click",SIGN.clearPad);

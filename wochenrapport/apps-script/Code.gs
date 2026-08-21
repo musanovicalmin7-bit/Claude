@@ -94,7 +94,8 @@ function ensureSheets_() {
     ss.insertSheet(SHEET_PROJEKTE).appendRow(['Projektnummer (exakt wie Messerli)', 'Bezeichnung']);
   }
   var mitHeader = ['Mitarbeiter Nr. (exakt wie Messerli)', 'Name', 'E-Mail (optional, für PDF-Zustellung)',
-                   'Kostenart Arbeit (je nach Funktion: Service/Installateur/Monteur/Lehrling …)'];
+                   'Kostenart Arbeit (je nach Funktion: Service/Installateur/Monteur/Lehrling …)',
+                   'PIN (optional, z. B. 4-stellig – schützt vor Erfassung unter fremdem Namen)'];
   var mit = ss.getSheetByName(SHEET_MITARBEITER);
   if (!mit) mit = ss.insertSheet(SHEET_MITARBEITER);
   mit.getRange(1, 1, 1, mitHeader.length).setValues([mitHeader]).setFontWeight('bold');
@@ -118,11 +119,12 @@ function getStammdaten() {
     if (nr) projects.push({ nr: nr, label: trim_(proj[i][1]) });
   }
 
+  // pin: nur JA/NEIN – der PIN selbst verlässt den Server nie.
   var names = [];
   var mit = ss.getSheetByName(SHEET_MITARBEITER).getDataRange().getValues();
   for (var j = 1; j < mit.length; j++) {
     var mnr = trim_(mit[j][0]), name = trim_(mit[j][1]);
-    if (name) names.push({ nr: mnr, name: name });
+    if (name) names.push({ nr: mnr, name: name, pin: !!trim_(mit[j][4]) });
   }
 
   // Absenzarten aus dem Kostenarten-Reiter (ohne "Arbeit") – so zeigt das
@@ -142,8 +144,15 @@ function getStammdaten() {
  *   ma, maNr, von, rapnr, entries: [ { datum, auftrag, stunden }, ... ]
  * }
  */
+/** Prüft den PIN eines Mitarbeiters (Spalte E). Ohne hinterlegten PIN immer ok. */
+function checkPin(name, pin) {
+  var rec = readMitarbeiter_()[String(name || '').trim().toLowerCase()] || {};
+  return { ok: !rec.pin || rec.pin === String(pin || '').trim() };
+}
+
 function submitRapport(payload) {
   if (!payload || !payload.ma) throw new Error('Bitte zuerst den Namen wählen.');
+  if (!checkPin(payload.ma, payload.pin).ok) throw new Error('Falscher PIN.');
   var entries = (payload.entries || []).filter(function (e) {
     return e && e.auftrag && Number(e.stunden) > 0;
   });
@@ -276,16 +285,16 @@ function createRapportPdf_(payload, entries) {
   colTot.forEach(function (v) { h += td('<b>' + num(v) + '</b>', 'text-align:center'); });
   h += td('<b>' + num(tot) + '</b>', 'text-align:right') + '</tr></table>' +
     '<h2 style="font-size:14px;margin:16px 0 6px">Protokoll Arbeitszeiten</h2>' +
-    '<table style="width:75%;border-collapse:collapse"><tr style="background:#EDF3F8">' +
+    '<table style="width:80%;border-collapse:collapse"><tr style="background:#EDF3F8">' +
     td('<b>Tag</b>') + td('<b>Beginn</b>', 'text-align:center') +
-    td('<b>Znüni-Pause</b>', 'text-align:center') + td('<b>Mittagspause</b>', 'text-align:center') +
+    td('<b>Pausen</b>', 'text-align:center') +
     td('<b>Ende</b>', 'text-align:center') + td('<b>Stunden</b>', 'text-align:right') + '</tr>';
   (payload.protokoll || []).forEach(function (p) {
-    // Abwärtskompatibel: ältere Formularversion lieferte pauseVon/pauseBis (eine Pause)
-    var p1 = p.pause1 || ((p.pauseVon && p.pauseBis) ? (p.pauseVon + ' – ' + p.pauseBis) : '');
-    var p2 = p.pause2 || '';
+    // Alle Pausen (1–3) in einer Spalte; abwärtskompatibel zu pauseVon/pauseBis.
+    var pausen = [p.pause1 || ((p.pauseVon && p.pauseBis) ? (p.pauseVon + ' – ' + p.pauseBis) : ''),
+                  p.pause2 || '', p.pause3 || ''].filter(function (x) { return x; }).join(', ');
     h += '<tr>' + td(esc_(p.tag) + ' ' + esc_(p.datum)) + td(esc_(p.start), 'text-align:center') +
-         td(p1 ? esc_(p1) : '–', 'text-align:center') + td(p2 ? esc_(p2) : '–', 'text-align:center') +
+         td(pausen ? esc_(pausen) : '–', 'text-align:center') +
          td(esc_(p.ende), 'text-align:center') + td(num(p.stunden), 'text-align:right') + '</tr>';
   });
   h += '</table>';
@@ -491,13 +500,13 @@ function readKostenarten_() {
   return out;
 }
 
-/** name (klein) -> { nr, kostenart } aus dem Mitarbeiter-Reiter (Spalten A, B, D). */
+/** name (klein) -> { nr, kostenart, pin } aus dem Mitarbeiter-Reiter (Spalten A, B, D, E). */
 function readMitarbeiter_() {
   var map = {};
   var v = ss_().getSheetByName(SHEET_MITARBEITER).getDataRange().getValues();
   for (var i = 1; i < v.length; i++) {
-    var nr = trim_(v[i][0]), name = trim_(v[i][1]), kostenart = trim_(v[i][3]);
-    if (name) map[name.toLowerCase()] = { nr: nr, kostenart: kostenart };
+    var nr = trim_(v[i][0]), name = trim_(v[i][1]), kostenart = trim_(v[i][3]), pin = trim_(v[i][4]);
+    if (name) map[name.toLowerCase()] = { nr: nr, kostenart: kostenart, pin: pin };
   }
   return map;
 }
