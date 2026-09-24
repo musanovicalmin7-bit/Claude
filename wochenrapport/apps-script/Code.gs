@@ -19,6 +19,7 @@ var SHEET_RAPPORTE    = 'Rapporte';
 var SHEET_PROJEKTE    = 'Projekte';
 var SHEET_MITARBEITER = 'Mitarbeiter';
 var SHEET_KOSTEN     = 'Kostenarten';
+var SHEET_ENTWURF    = 'Entwürfe';      // Zwischenstände der App (pro Mitarbeiter und Woche), ausgeblendet
 var SOLL_STUNDEN      = 40;
 
 /**
@@ -215,12 +216,60 @@ function submitRapport(payload) {
               pdfUrl];
     });
     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+    deleteEntwurf_(payload.ma, payload.von);   // Zwischenstand ist mit der Abgabe erledigt
     return { ok: true, count: rows.length,
              pdfUrl: (pdfFile ? pdfUrl : ''), mailedTo: mailInfo };
   } finally {
     lock.releaseLock();
   }
 }
+
+/* ------------------------------------------------------------------
+ * Entwürfe: Zwischenstand einer angefangenen Woche wird zentral gesichert.
+ * Grund: Der Browser-Speicher der App ist im eingebetteten Google-Fenster
+ * nicht zuverlässig (wechselnde Ursprünge, blockierte Cookies) – nach dem
+ * Schliessen der App war ein angefangener Rapport weg.
+ * ------------------------------------------------------------------ */
+function entwurfSheet_() {
+  var ss = ss_(), sh = ss.getSheetByName(SHEET_ENTWURF);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_ENTWURF);
+    sh.appendRow(['Mitarbeiter Nr.', 'Mitarbeiter', 'Woche vom (ISO)', 'Entwurf (JSON)', 'Zuletzt gespeichert']);
+    sh.getRange(1, 1, 1, 5).setFontWeight('bold');
+    try { sh.hideSheet(); } catch (e) {}
+  }
+  return sh;
+}
+function entwurfKey_(name, week) {
+  return String(name || '').trim().toLowerCase() + '|' + String(week || '').trim();
+}
+/** Entwurf speichern (json leer/null = Entwurf löschen). Wird von der App mit Verzögerung aufgerufen. */
+function saveEntwurf(nr, name, week, json) {
+  if (!name || !week) return { ok: false };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sh = entwurfSheet_(), v = sh.getDataRange().getValues(), key = entwurfKey_(name, week), row = -1;
+    for (var i = 1; i < v.length; i++) if (entwurfKey_(v[i][1], v[i][2]) === key) { row = i + 1; break; }
+    if (!json) { if (row > 0) sh.deleteRow(row); return { ok: true, deleted: true }; }
+    var rec = [String(nr || ''), String(name), String(week), String(json), new Date()];
+    if (row > 0) sh.getRange(row, 1, 1, 5).setValues([rec]); else sh.appendRow(rec);
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+/** Alle Entwürfe eines Mitarbeiters: { "YYYY-MM-DD": { json, saved } }. */
+function loadEntwuerfe(name) {
+  var out = {}, key = String(name || '').trim().toLowerCase();
+  if (!key) return out;
+  var v = entwurfSheet_().getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][1] || '').trim().toLowerCase() !== key) continue;
+    var week = String(v[i][2] || '').trim(), saved = v[i][4];
+    out[week] = { json: String(v[i][3] || ''), saved: (saved instanceof Date) ? saved.toISOString() : String(saved || '') };
+  }
+  return out;
+}
+function deleteEntwurf_(name, week) { try { saveEntwurf('', name, week, null); } catch (e) {} }
 
 /** E-Mail-Adresse eines Mitarbeiters aus dem Stammdaten-Reiter (Spalte C). */
 function emailForName_(name) {

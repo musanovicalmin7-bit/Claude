@@ -248,6 +248,7 @@
   var KEY_PREFIX="zeit-draft-";           // Entwurf pro Woche: zeit-draft-YYYY-MM-DD
   var KEY_LAST="zeit-draft-last";         // Montag der zuletzt bearbeiteten Woche
   var STORAGE_OK=true;
+  var MEM={};                             // Entwürfe dieser Sitzung im Speicher (Woche -> JSON); Browser-Speicher nur als Zusatz
   var CURRENT=null;                     // gewählter Name – gilt nur für diese Sitzung (Startschirm = Namenswahl)
   var DW=["Mo","Di","Mi","Do","Fr","Sa","So"];
   var weekStart=null;                    // ISO des Montags
@@ -485,17 +486,70 @@
   }
   function saveDraft(){
     if(!weekStart) return;
+    var cards=collectCards(), empty=draftIsEmpty(cards);
+    var json=empty?null:JSON.stringify({week:weekStart,cards:cards,prot:PROT,saved:new Date().toISOString()});
+    if(empty) delete MEM[weekStart]; else MEM[weekStart]=json;
     try{
-      var cards=collectCards();
-      if(draftIsEmpty(cards)){ localStorage.removeItem(KEY_PREFIX+weekStart); return; }
-      localStorage.setItem(KEY_PREFIX+weekStart,JSON.stringify({week:weekStart,cards:cards,prot:PROT,saved:new Date().toISOString()}));
-      localStorage.setItem(KEY_LAST,weekStart);
+      if(empty) localStorage.removeItem(KEY_PREFIX+weekStart);
+      else { localStorage.setItem(KEY_PREFIX+weekStart,json); localStorage.setItem(KEY_LAST,weekStart); }
     }catch(e){}
+    scheduleServerSave(weekStart,json);
+  }
+  /* Zentrale Sicherung im Sheet (Reiter "Entwürfe"): der Browser-Speicher ist im
+     eingebetteten Google-Fenster nicht verlässlich. Gesendet wird gebündelt, 1.5 s nach der letzten Änderung. */
+  var SRV={timer:null,pending:{},busy:false};
+  function scheduleServerSave(week,json){
+    if(!CURRENT) return;
+    SRV.pending[week]=json; clearTimeout(SRV.timer);
+    SRV.timer=setTimeout(flushServerSave,1500);
+  }
+  function flushServerSave(){
+    if(!CURRENT||SRV.busy) return;
+    var weeks=Object.keys(SRV.pending); if(!weeks.length) return;
+    var week=weeks[0], json=SRV.pending[week]; delete SRV.pending[week];
+    SRV.busy=true; setStatus(json?"Entwurf wird gesichert …":"");
+    google.script.run
+      .withSuccessHandler(function(){ SRV.busy=false; setStatus(json?"Entwurf gesichert":""); flushServerSave(); })
+      .withFailureHandler(function(){ SRV.busy=false; SRV.pending[week]=json; setStatus("Entwurf konnte nicht gesichert werden – Verbindung prüfen"); setTimeout(flushServerSave,8000); })
+      .saveEntwurf(CURRENT.nr||"",CURRENT.name,week,json);
+  }
+  var statusT=null;
+  function setStatus(t){
+    var m=$("loading"); clearTimeout(statusT);
+    if(!t){ m.classList.remove("show"); return; }
+    m.className="msg info show"; m.textContent=t;
+    if(t==="Entwurf gesichert") statusT=setTimeout(function(){ m.classList.remove("show"); },1500);
+  }
+  /* Entwürfe vom Server holen und einspielen, falls lokal nichts (oder Älteres) vorhanden ist. */
+  function syncFromServer(){
+    var me=CURRENT; if(!me) return;
+    google.script.run.withSuccessHandler(function(map){
+      if(!CURRENT||CURRENT.name!==me.name||!map) return;
+      var thisMon=isoDate(mondayOf(new Date())), lastMon=isoDate(addDays(thisMon,-7)), restored=null;
+      [lastMon,thisMon].forEach(function(w){
+        var srv=map[w]; if(!srv||!srv.json) return;
+        var d=null; try{ d=JSON.parse(srv.json); }catch(e){ return; }
+        if(!d||!d.cards||!d.cards.length||draftIsEmpty(d.cards)) return;
+        var loc=loadDraft(w);
+        if(loc&&loc.saved&&d.saved&&loc.saved>=d.saved) return;   // lokal ist gleich neu oder neuer
+        MEM[w]=srv.json;
+        try{ localStorage.setItem(KEY_PREFIX+w,srv.json); }catch(e){}
+        if(w===weekStart&&draftIsEmpty(collectCards())){
+          $("cards").innerHTML=""; PROT=d.prot||{}; d.cards.forEach(function(c){ makeCard(c); }); paintWeekTotal(); restored=w;
+        } else if(!restored&&draftIsEmpty(collectCards())&&!loadDraft(weekStart)){
+          weekStart=w; renderWeeks(); $("cards").innerHTML=""; PROT=d.prot||{}; d.cards.forEach(function(c){ makeCard(c); }); paintWeekTotal(); restored=w;
+        }
+      });
+      if(restored){ setStatus("Angefangene Woche wiederhergestellt"); statusT=setTimeout(function(){ $("loading").classList.remove("show"); },3000); }
+    }).withFailureHandler(function(){}).loadEntwuerfe(me.name);
   }
   function loadDraft(iso){
-    try{ var d=JSON.parse(localStorage.getItem(KEY_PREFIX+(iso||weekStart))); return (d&&d.cards&&d.cards.length)?d:null; }catch(e){ return null; }
+    iso=iso||weekStart;
+    var raw=MEM[iso]||null;
+    if(!raw){ try{ raw=localStorage.getItem(KEY_PREFIX+iso); }catch(e){ raw=null; } }
+    try{ var d=JSON.parse(raw); return (d&&d.cards&&d.cards.length)?d:null; }catch(e){ return null; }
   }
-  function clearDraft(iso){ try{ localStorage.removeItem(KEY_PREFIX+iso); if(localStorage.getItem(KEY_LAST)===iso) localStorage.removeItem(KEY_LAST); }catch(e){} }
+  function clearDraft(iso){ clearTimeout(SRV.timer); delete SRV.pending[iso]; delete MEM[iso]; try{ localStorage.removeItem(KEY_PREFIX+iso); if(localStorage.getItem(KEY_LAST)===iso) localStorage.removeItem(KEY_LAST); }catch(e){} }
   /* Woche mit offenem Entwurf (nur diese oder letzte Woche), sonst diese Woche. */
   function weekWithDraft(){
     var thisMon=isoDate(mondayOf(new Date())), lastMon=isoDate(addDays(thisMon,-7)), last=null;
@@ -631,6 +685,7 @@
       .withSuccessHandler(function(res){
         btn.disabled=false; btn.textContent="Woche abschicken";
         clearDraft(weekStart);
+        SRV.pending[weekStart]=null; flushServerSave();   // Entwurf auch zentral löschen (falls eine Sicherung noch unterwegs war)
         $("mainScreen").style.display="none"; $("sendbar").style.display="none";
         var a=new Date(weekStart+"T12:00:00");
         $("doneText").textContent=res.count+" Buchung"+(res.count>1?"en":"")+" für die Woche ab "+chDate(a)+" gespeichert.";
@@ -669,8 +724,7 @@
       else makeCard();
     }
     paintWeekTotal();
-    if(!STORAGE_OK){ var m=$("loading"); m.className="msg info show";
-      m.textContent="Hinweis: Auf diesem Gerät kann kein Entwurf gespeichert werden. Bitte die Woche in einem Zug erfassen und abschicken."; }
+    syncFromServer();
   }
 
   /* ---------- Events ---------- */
