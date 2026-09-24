@@ -244,7 +244,10 @@
   var PROJECTS=[], NAMES=[];
   // Fallback, falls der Kostenarten-Reiter leer ist; wird beim Laden durch die Serverliste ersetzt.
   var ABSENCES=["Unfall","Krank","Ferien Bezug","Schule","Weiterbildung"];
-  var KEY_DRAFT="zeit-draft-woche";
+  var KEY_DRAFT="zeit-draft-woche";        // alter Schlüssel (bis Sept. 2026), wird beim Start migriert
+  var KEY_PREFIX="zeit-draft-";           // Entwurf pro Woche: zeit-draft-YYYY-MM-DD
+  var KEY_LAST="zeit-draft-last";         // Montag der zuletzt bearbeiteten Woche
+  var STORAGE_OK=true;
   var CURRENT=null;                     // gewählter Name – gilt nur für diese Sitzung (Startschirm = Namenswahl)
   var DW=["Mo","Di","Mi","Do","Fr","Sa","So"];
   var weekStart=null;                    // ISO des Montags
@@ -475,8 +478,48 @@
   }
 
   /* ---------- Draft ---------- */
-  function saveDraft(){ try{ localStorage.setItem(KEY_DRAFT,JSON.stringify({week:weekStart,cards:collectCards(),prot:PROT})); }catch(e){} }
-  function loadDraft(){ try{ return JSON.parse(localStorage.getItem(KEY_DRAFT)); }catch(e){ return null; } }
+  /* Entwurf pro Woche. Ein leerer Stand (keine Auftragsnummer, keine Stunden) löscht den
+     Entwurf dieser Woche – ein frisch aufgebauter Schirm kann so nie einen echten Entwurf überschreiben. */
+  function draftIsEmpty(cards){
+    return !cards.some(function(c){ return (c.auftrag&&c.auftrag.trim())||c.h.some(function(v){ return v>0; }); });
+  }
+  function saveDraft(){
+    if(!weekStart) return;
+    try{
+      var cards=collectCards();
+      if(draftIsEmpty(cards)){ localStorage.removeItem(KEY_PREFIX+weekStart); return; }
+      localStorage.setItem(KEY_PREFIX+weekStart,JSON.stringify({week:weekStart,cards:cards,prot:PROT,saved:new Date().toISOString()}));
+      localStorage.setItem(KEY_LAST,weekStart);
+    }catch(e){}
+  }
+  function loadDraft(iso){
+    try{ var d=JSON.parse(localStorage.getItem(KEY_PREFIX+(iso||weekStart))); return (d&&d.cards&&d.cards.length)?d:null; }catch(e){ return null; }
+  }
+  function clearDraft(iso){ try{ localStorage.removeItem(KEY_PREFIX+iso); if(localStorage.getItem(KEY_LAST)===iso) localStorage.removeItem(KEY_LAST); }catch(e){} }
+  /* Woche mit offenem Entwurf (nur diese oder letzte Woche), sonst diese Woche. */
+  function weekWithDraft(){
+    var thisMon=isoDate(mondayOf(new Date())), lastMon=isoDate(addDays(thisMon,-7)), last=null;
+    try{ last=localStorage.getItem(KEY_LAST); }catch(e){}
+    if(last&&(last===thisMon||last===lastMon)&&loadDraft(last)) return last;
+    if(loadDraft(thisMon)) return thisMon;
+    if(loadDraft(lastMon)) return lastMon;
+    return thisMon;
+  }
+  /* Alten Ein-Wochen-Entwurf (Schlüssel zeit-draft-woche) einmalig in das neue Schema übernehmen. */
+  function migrateDraft(){
+    try{
+      var raw=localStorage.getItem(KEY_DRAFT); if(!raw) return;
+      var d=JSON.parse(raw);
+      if(d&&d.week&&d.cards&&d.cards.length&&!draftIsEmpty(d.cards)&&!localStorage.getItem(KEY_PREFIX+d.week)){
+        localStorage.setItem(KEY_PREFIX+d.week,JSON.stringify(d)); localStorage.setItem(KEY_LAST,d.week);
+      }
+      localStorage.removeItem(KEY_DRAFT);
+    }catch(e){}
+  }
+  function storageCheck(){
+    try{ localStorage.setItem("zeit-test","1"); localStorage.removeItem("zeit-test"); STORAGE_OK=true; }
+    catch(e){ STORAGE_OK=false; }
+  }
 
   /* ---------- Autocomplete ---------- */
   var AC=(function(){
@@ -587,7 +630,7 @@
     google.script.run
       .withSuccessHandler(function(res){
         btn.disabled=false; btn.textContent="Woche abschicken";
-        try{ localStorage.removeItem(KEY_DRAFT); }catch(e){}
+        clearDraft(weekStart);
         $("mainScreen").style.display="none"; $("sendbar").style.display="none";
         var a=new Date(weekStart+"T12:00:00");
         $("doneText").textContent=res.count+" Buchung"+(res.count>1?"en":"")+" für die Woche ab "+chDate(a)+" gespeichert.";
@@ -618,16 +661,16 @@
     $("whoName").textContent=me.name; $("who").style.display="";
     $("nameScreen").style.display="none"; $("doneScreen").style.display="none"; $("pinScreen").style.display="none";
     $("mainScreen").style.display=""; $("sendbar").style.display="";
-    if(!weekStart) weekStart=isoDate(mondayOf(new Date()));
+    if(!weekStart) weekStart=weekWithDraft();   // Woche mit offenem Entwurf zuerst
     renderWeeks();
     if(!$("cards").children.length){
-      var dr=loadDraft();
-      if(dr&&dr.cards&&dr.cards.length&&dr.week===weekStart){
-        PROT=dr.prot||{};
-        dr.cards.forEach(function(c){ makeCard(c); });
-      } else makeCard();
+      var dr=loadDraft(weekStart);
+      if(dr){ PROT=dr.prot||{}; dr.cards.forEach(function(c){ makeCard(c); }); }
+      else makeCard();
     }
     paintWeekTotal();
+    if(!STORAGE_OK){ var m=$("loading"); m.className="msg info show";
+      m.textContent="Hinweis: Auf diesem Gerät kann kein Entwurf gespeichert werden. Bitte die Woche in einem Zug erfassen und abschicken."; }
   }
 
   /* ---------- Events ---------- */
@@ -641,10 +684,10 @@
     var b=e.target.closest?e.target.closest(".week"):null; if(!b) return;
     weekStart=b.getAttribute("data-iso"); renderWeeks();
     $("cards").innerHTML=""; PROT={};
-    var dr=loadDraft();
-    if(dr&&dr.cards&&dr.cards.length&&dr.week===weekStart){ PROT=dr.prot||{}; dr.cards.forEach(function(c){ makeCard(c); }); }
+    var dr=loadDraft(weekStart);
+    if(dr){ PROT=dr.prot||{}; dr.cards.forEach(function(c){ makeCard(c); }); }
     else makeCard();
-    paintWeekTotal(); saveDraft();
+    paintWeekTotal();
   });
   $("addCard").addEventListener("click",function(){ makeCard(); });
   $("pinBack").addEventListener("click",function(){ PENDING=null; showName(); });
@@ -656,12 +699,13 @@
   $("signOk").addEventListener("click",SIGN.confirm);
   $("again").addEventListener("click",function(){
     // zurück zum Startschirm (Namenswahl) – wichtig bei geteilten Geräten
-    $("cards").innerHTML=""; PROT={}; weekStart=isoDate(mondayOf(new Date()));
+    $("cards").innerHTML=""; PROT={}; weekStart=null;
     CURRENT=null; showName();
   });
   window.addEventListener("scroll",AC.reposition,true); window.addEventListener("resize",AC.reposition);
 
   /* ---------- Boot ---------- */
+  storageCheck(); migrateDraft();
   google.script.run.withSuccessHandler(function(data){
     PROJECTS=data.projects||[]; NAMES=data.names||[];
     if(data.absenzen&&data.absenzen.length) ABSENCES=data.absenzen;
