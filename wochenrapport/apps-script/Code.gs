@@ -64,6 +64,20 @@ function testMail() {
     'Testmail vom Wochenrapport-Script. Wenn diese Mail ankommt, funktioniert der Versand.');
 }
 
+/**
+ * Test: schreibt einen Probe-Entwurf ins Blatt "Entwürfe", liest ihn zurück und löscht ihn wieder.
+ * Im Editor ausführen → im Protokoll muss "Entwurf-Test OK" stehen. Beim ersten Mal Berechtigung zulassen.
+ */
+function testEntwurf() {
+  var name = '_Test Entwurf_', week = '2026-01-05';
+  saveEntwurf('0', name, week, '{"cards":[{"auftrag":"TEST","h":[1,0,0,0,0,0,0]}]}');
+  var map = loadEntwuerfe(name);
+  saveEntwurf('0', name, week, null);
+  if (!map[week] || map[week].json.indexOf('TEST') < 0) throw new Error('Entwurf-Test FEHLGESCHLAGEN: ' + JSON.stringify(map));
+  Logger.log('Entwurf-Test OK – Blatt "' + SHEET_ENTWURF + '" funktioniert.');
+  return 'OK';
+}
+
 /** Menü im Sheet. */
 function onOpen() {
   SpreadsheetApp.getUi()
@@ -240,8 +254,13 @@ function entwurfSheet_() {
   }
   return sh;
 }
+/** Wochenwert aus dem Blatt immer als "YYYY-MM-DD" (Sheets wandelt solche Texte gern in ein Datum um). */
+function entwurfWeek_(w) {
+  if (w instanceof Date) return Utilities.formatDate(w, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return String(w || '').trim();
+}
 function entwurfKey_(name, week) {
-  return String(name || '').trim().toLowerCase() + '|' + String(week || '').trim();
+  return String(name || '').trim().toLowerCase() + '|' + entwurfWeek_(week);
 }
 /** Entwurf speichern (json leer/null = Entwurf löschen). Wird von der App mit Verzögerung aufgerufen. */
 function saveEntwurf(nr, name, week, json) {
@@ -252,9 +271,11 @@ function saveEntwurf(nr, name, week, json) {
     var sh = entwurfSheet_(), v = sh.getDataRange().getValues(), key = entwurfKey_(name, week), row = -1;
     for (var i = 1; i < v.length; i++) if (entwurfKey_(v[i][1], v[i][2]) === key) { row = i + 1; break; }
     if (!json) { if (row > 0) sh.deleteRow(row); return { ok: true, deleted: true }; }
-    var rec = [String(nr || ''), String(name), String(week), String(json), new Date()];
-    if (row > 0) sh.getRange(row, 1, 1, 5).setValues([rec]); else sh.appendRow(rec);
-    return { ok: true };
+    if (row < 0) row = sh.getLastRow() + 1;
+    // Spalten 1-4 als Text erzwingen, sonst macht Sheets aus "2026-09-14" ein Datum und aus der Nr. eine Zahl
+    sh.getRange(row, 1, 1, 4).setNumberFormat('@');
+    sh.getRange(row, 1, 1, 5).setValues([[String(nr || ''), String(name), String(week), String(json), new Date()]]);
+    return { ok: true, row: row };
   } finally { lock.releaseLock(); }
 }
 /** Alle Entwürfe eines Mitarbeiters: { "YYYY-MM-DD": { json, saved } }. */
@@ -264,7 +285,7 @@ function loadEntwuerfe(name) {
   var v = entwurfSheet_().getDataRange().getValues();
   for (var i = 1; i < v.length; i++) {
     if (String(v[i][1] || '').trim().toLowerCase() !== key) continue;
-    var week = String(v[i][2] || '').trim(), saved = v[i][4];
+    var week = entwurfWeek_(v[i][2]), saved = v[i][4];
     out[week] = { json: String(v[i][3] || ''), saved: (saved instanceof Date) ? saved.toISOString() : String(saved || '') };
   }
   return out;

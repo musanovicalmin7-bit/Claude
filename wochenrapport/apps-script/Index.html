@@ -170,6 +170,7 @@
   <!-- Schritt 1: Name (nur beim ersten Mal) -->
   <section id="nameScreen" style="display:none">
     <h2>Wer bist du?</h2>
+    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 3 · Entwürfe werden zentral gesichert</div>
     <input id="nameSearch" placeholder="Name tippen …" autocomplete="off">
     <div id="nameList"></div>
   </section>
@@ -510,7 +511,7 @@
     SRV.busy=true; setStatus(json?"Entwurf wird gesichert …":"");
     google.script.run
       .withSuccessHandler(function(){ SRV.busy=false; setStatus(json?"Entwurf gesichert":""); flushServerSave(); })
-      .withFailureHandler(function(){ SRV.busy=false; SRV.pending[week]=json; setStatus("Entwurf konnte nicht gesichert werden – Verbindung prüfen"); setTimeout(flushServerSave,8000); })
+      .withFailureHandler(function(err){ SRV.busy=false; SRV.pending[week]=json; setStatus("Entwurf konnte nicht gesichert werden: "+((err&&err.message)||"Verbindung prüfen")); setTimeout(flushServerSave,8000); })
       .saveEntwurf(CURRENT.nr||"",CURRENT.name,week,json);
   }
   var statusT=null;
