@@ -61,6 +61,8 @@ Im Google Sheet:
 - **Reiter `Kostenarten`:** Spalte A = Typ (`Arbeit` sowie die Absenzgründe),
   Spalte B = **Kostenart-Nummer exakt wie in Messerli**. `Arbeit` gilt für alle
   produktiven Projektstunden, die Absenzgründe haben je eigene Nummern.
+  `Kompensation Überstunden (frei)` mit Kostenart `K-ÜS` wird beim nächsten Öffnen
+  der App automatisch ergänzt, falls die Zeile fehlt.
 
 Änderungen sind sofort wirksam – kein erneutes Veröffentlichen nötig.
 

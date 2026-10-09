@@ -50,7 +50,9 @@ var ABSENZEN = [
   { nr: '014', label: 'Öffentliches Amt' },
   { nr: '015', label: 'Bezahlte Absenzen' },
   { nr: '016', label: 'Unbezahlte Absenzen' },
-  { nr: '017', label: 'Diverse Absenzen' }
+  { nr: '017', label: 'Diverse Absenzen' },
+  // Später ergänzt: wird auch in einen bestehenden Kostenarten-Reiter nachgetragen.
+  { nr: 'K-ÜS', label: 'Kompensation Überstunden (frei)', neu: true }
 ];
 
 /**
@@ -119,7 +121,22 @@ function ensureSheets_() {
     ks.appendRow(['Typ', 'Kostenart-Nummer (exakt wie Messerli)']);
     ks.appendRow(['Arbeit', '']);          // produktive Projektstunden – Nummer noch eintragen!
     ABSENZEN.forEach(function (a) { ks.appendRow([a.label, a.nr]); });
+  } else {
+    nachtragKostenarten_(ss.getSheetByName(SHEET_KOSTEN));
   }
+}
+
+/** Trägt neu dazugekommene Absenzarten nach, falls Typ und Nummer noch fehlen. */
+function nachtragKostenarten_(ks) {
+  var v = ks.getDataRange().getValues();
+  var typen = {}, nummern = {};
+  for (var i = 1; i < v.length; i++) {
+    typen[trim_(v[i][0]).toLowerCase()] = true;
+    nummern[trim_(v[i][1]).toLowerCase()] = true;
+  }
+  ABSENZEN.forEach(function (a) {
+    if (a.neu && !typen[a.label.toLowerCase()] && !nummern[a.nr.toLowerCase()]) ks.appendRow([a.label, a.nr]);
+  });
 }
 
 /** Stammdaten fürs Formular: Namen (mit Nr.), Projekte, Sollzeit. */
