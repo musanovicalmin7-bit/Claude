@@ -899,8 +899,7 @@
     if(a.status!=="offen"&&a.entVon) h+='<div class="am">'+esc(a.status)+' von '+esc(a.entVon)+(a.entAm?' am '+esc(a.entAm):'')+(a.kommentar?' – '+esc(a.kommentar):'')+'</div>';
     else h+='<div class="am">Eingang '+esc(a.eingang)+'</div>';
     if(mode==="gl"&&a.ueberschneidung&&a.ueberschneidung.length) h+='<div class="ovl">Gleichzeitig abwesend: '+a.ueberschneidung.map(esc).join(", ")+'</div>';
-    if(mode==="gl"&&a.status==="offen"&&CURRENT&&a.ma===CURRENT.name) h+='<div class="am">Eigener Antrag – entscheidet eine andere GL-Person.</div>';
-    else if(mode==="gl"&&a.status==="offen") h+='<textarea placeholder="Kommentar (bei Ablehnung Pflicht)"></textarea>'+
+    if(mode==="gl"&&a.status==="offen") h+='<textarea placeholder="Kommentar (bei Ablehnung Pflicht)"></textarea>'+
       '<div class="abtns"><button type="button" class="b-no" data-act="abgelehnt">Ablehnen</button><button type="button" class="b-ok" data-act="bewilligt">Bewilligen</button></div>';
     if(mode==="me"&&a.status==="offen") h+='<div class="abtns"><button type="button" class="b-soft" data-act="zurueck">Zurückziehen</button></div>';
     return h+'</div>';

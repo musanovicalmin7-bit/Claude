@@ -713,8 +713,7 @@ function submitAntrag(p) {
     sh.getRange(r, 1, 1, row.length).setValues([row]);
   } finally { lock.releaseLock(); }
 
-  // Wer selbst GL ist, bekommt die Mail zum eigenen Antrag nicht (entscheidet eine andere GL-Person).
-  var an = glEmpfaenger_().filter(function (m) { return m !== rec.email; });
+  var an = glEmpfaenger_();
   if (an.length) {
     try {
       var zeit = halb ? chFromIso_(von) + ' (halber Tag)' : chFromIso_(von) + ' – ' + chFromIso_(bis);
@@ -786,9 +785,6 @@ function entscheidAntrag(name, pin, id, entscheid, kommentar) {
     if (!r) throw new Error('Antrag nicht gefunden.');
     if (r.v[A.STATUS] !== 'offen') throw new Error('Bereits erledigt: ' + r.v[A.STATUS] + ' von ' + (r.v[A.ENT_VON] || '–') + '.');
     var gl = (readMitarbeiter_()[String(name).trim().toLowerCase()] || {}).name || name;
-    // Vier-Augen-Prinzip: eigene Anträge entscheidet eine andere GL-Person.
-    if (String(r.v[A.MA]).trim().toLowerCase() === String(gl).trim().toLowerCase())
-      throw new Error('Eigene Anträge muss eine andere GL-Person bewilligen.');
     antragSheet_().getRange(r.row, A.STATUS + 1, 1, 4)
       .setValues([[entscheid, new Date(), gl, String(kommentar || '').slice(0, 300)]]);
     r.v[A.STATUS] = entscheid; r.v[A.ENT_VON] = gl; r.v[A.KOMMENTAR] = kommentar || '';
