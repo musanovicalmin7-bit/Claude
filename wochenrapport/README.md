@@ -64,7 +64,39 @@ Im Google Sheet:
   `Kompensation Überstunden (frei)` mit Kostenart `K-ÜS` wird beim nächsten Öffnen
   der App automatisch ergänzt, falls die Zeile fehlt.
 
+- **Spalte F `Rolle` im Reiter `Mitarbeiter`:** `GL` bei allen, die Ferienanträge und
+  Absenzmeldungen bewilligen dürfen. Eine GL-Person braucht zwingend einen PIN (Spalte E)
+  und eine E-Mail-Adresse (Spalte C). PINs nie in dieses Repo schreiben.
+
 Änderungen sind sofort wirksam – kein erneutes Veröffentlichen nötig.
+
+## Ferienantrag und Absenzmeldung (ab Version 5)
+
+Ersetzt die Papierformulare. Ablauf:
+
+1. Mitarbeiter meldet sich in der App an und öffnet den Reiter **Ferien / Absenz**.
+   Ferienantrag oder Absenzmeldung (Militär/Zivilschutz, Weiterbildung, Schule, Kompensation …),
+   Von/Bis, bei einem einzelnen Tag optional halber Tag (bei Ferien: Abzug Ferien- oder ÜZ-Konto),
+   Bemerkung, bei Absenzen Aufgebot/Soldmeldekarte abgegeben. Die Arbeitstage werden ohne
+   Wochenende und Zürcher Feiertage gezählt (individuelles Pensum wird nicht berücksichtigt).
+2. Der Antrag landet im Reiter **`Anträge`** (Status `offen`), alle GL-Personen erhalten eine
+   Mail mit dem Link zur App.
+3. Die GL meldet sich mit Namen + PIN an und sieht den Reiter **Freigabe**: offene Anträge mit
+   Hinweis, wer im gleichen Zeitraum schon abwesend ist. *Bewilligen* oder *Ablehnen*
+   (Ablehnung nur mit Begründung). Status, Datum und Name der GL werden gespeichert,
+   der Mitarbeiter erhält eine Mail.
+4. Solange ein Antrag offen ist, kann ihn der Mitarbeiter zurückziehen.
+5. Bewilligte Tage erscheinen automatisch im Wochenrapport, wenn die Woche noch leer ist
+   (Ferien Bezug 8 h, halber Tag 4 h, halber Tag ab ÜZ-Konto als Kompensation).
+6. Lohnbuchhaltung/Sekretariat haken im Sheet die Spalten *Ausbezahlt (LB)* und
+   *Ausgebucht (Sekretariat)* ab.
+
+Sicherheit: GL-Rechte prüft nur der Server nach korrektem PIN. Nach 5 falschen PIN-Eingaben
+ist der Name 15 Minuten gesperrt. Die Rolle wird nie an den Browser geschickt.
+
+Erinnerung: Menü **Wochenrapport → Erinnerung offene Anträge einrichten (täglich)** einmal
+ausführen. Danach erhält die GL jeden Morgen um 7 Uhr eine Mail, wenn Anträge länger als
+3 Tage offen sind.
 
 ## Kontrolle: Wer hat eingereicht?
 
@@ -117,7 +149,7 @@ ca. 2–3 h (Fr. 180.–/h); weitere Module werden nicht benötigt.
 wochenrapport/
 ├─ apps-script/
 │  ├─ Code.gs             Backend: Formular, zentrale Ablage, Messerli-CSV-Export
-│  └─ Index.html          Web-Formular (Namensauswahl, Auftrag-Autocomplete, Stundenerfassung)
+│  └─ Index.html          Web-Formular (Stundenerfassung, Ferien/Absenz-Antrag, GL-Freigabe)
 ├─ mitarbeiter-liste.tsv  69 Mitarbeiter (Nr. + Name) zum Einfügen in den Reiter "Mitarbeiter"
 └─ README.md              diese Anleitung
 ```
@@ -127,4 +159,5 @@ wochenrapport/
 - **Kostenart-Nummern** im Reiter `Kostenarten` eintragen (aus MesserliPROJEKT übernehmen).
 - **Projektnummern** im Reiter `Projekte` einfügen (exakt wie in Messerli, z. B. `26-26581.001`).
 - Import auf Messerli-Seite einrichten/testen lassen (Angebot Support: ca. 2–3 h à Fr. 180.–).
-- Optional: Freigabe-/Visum-Schritt durch Vorgesetzte, Wochenübersicht pro Mitarbeiter.
+- Optional: Visum-Schritt für Wochenrapporte durch Vorgesetzte.
+- Geplant: aktueller Stunden- und Feriensaldo in der App (aus Messerli-Excel).

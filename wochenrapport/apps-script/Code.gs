@@ -13,6 +13,7 @@
  *   - "Projekte"    : Spalte A Projektnummer (exakt wie in MesserliPROJEKT!), Spalte B Bezeichnung
  *   - "Mitarbeiter" : Spalte A Mitarbeiter-Nummer (exakt!), Spalte B Name
  *   - "Kostenarten" : Spalte A Typ (Arbeit / Absenzgründe), Spalte B Kostenart-Nummer (exakt!)
+ *   - "Anträge"     : Ferienanträge und Absenzmeldungen mit Status (offen/bewilligt/abgelehnt/zurückgezogen)
  */
 
 var SHEET_RAPPORTE    = 'Rapporte';
@@ -20,6 +21,7 @@ var SHEET_PROJEKTE    = 'Projekte';
 var SHEET_MITARBEITER = 'Mitarbeiter';
 var SHEET_KOSTEN     = 'Kostenarten';
 var SHEET_ENTWURF    = 'Entwürfe';      // Zwischenstände der App (pro Mitarbeiter und Woche), ausgeblendet
+var SHEET_ANTRAG     = 'Anträge';
 var SOLL_STUNDEN      = 40;
 
 /**
@@ -87,6 +89,8 @@ function onOpen() {
     .addItem('Reiter einrichten', 'ensureSheets_')
     .addItem('Kontrolle aktualisieren', 'updateKontrolle')
     .addItem('Messerli-Export erstellen …', 'exportMesserli')
+    .addSeparator()
+    .addItem('Erinnerung offene Anträge einrichten (täglich)', 'setupErinnerung')
     .addToUi();
 }
 
@@ -112,7 +116,8 @@ function ensureSheets_() {
   }
   var mitHeader = ['Mitarbeiter Nr. (exakt wie Messerli)', 'Name', 'E-Mail (optional, für PDF-Zustellung)',
                    'Kostenart Arbeit (je nach Funktion: Service/Installateur/Monteur/Lehrling …)',
-                   'PIN (optional, z. B. 4-stellig – schützt vor Erfassung unter fremdem Namen)'];
+                   'PIN (optional, z. B. 4-stellig – schützt vor Erfassung unter fremdem Namen)',
+                   'Rolle (GL = darf Anträge bewilligen, braucht PIN)'];
   var mit = ss.getSheetByName(SHEET_MITARBEITER);
   if (!mit) mit = ss.insertSheet(SHEET_MITARBEITER);
   mit.getRange(1, 1, 1, mitHeader.length).setValues([mitHeader]).setFontWeight('bold');
@@ -157,6 +162,7 @@ function getStammdaten() {
   for (var j = 1; j < mit.length; j++) {
     var mnr = trim_(mit[j][0]), name = trim_(mit[j][1]);
     if (name) names.push({ nr: mnr, name: name, pin: !!trim_(mit[j][4]) });
+    // Rolle wird bewusst nicht mitgeschickt – GL-Rechte prüft der Server erst nach dem PIN.
   }
 
   // Absenzarten aus dem Kostenarten-Reiter (ohne "Arbeit") – so zeigt das
@@ -176,15 +182,31 @@ function getStammdaten() {
  *   ma, maNr, von, rapnr, entries: [ { datum, auftrag, stunden }, ... ]
  * }
  */
-/** Prüft den PIN eines Mitarbeiters (Spalte E). Ohne hinterlegten PIN immer ok. */
+/**
+ * Prüft den PIN eines Mitarbeiters (Spalte E). Ohne hinterlegten PIN immer ok.
+ * Nach 5 Fehlversuchen ist der Name für 15 Minuten gesperrt.
+ * gl = true nur, wenn Rolle "GL" und ein PIN hinterlegt und korrekt ist.
+ */
 function checkPin(name, pin) {
+  var key = 'pinfail_' + String(name || '').trim().toLowerCase();
+  var cache = CacheService.getScriptCache();
+  var fails = Number(cache.get(key) || 0);
+  if (fails >= 5) return { ok: false, locked: true };
   var rec = readMitarbeiter_()[String(name || '').trim().toLowerCase()] || {};
-  return { ok: !rec.pin || rec.pin === String(pin || '').trim() };
+  var ok = !rec.pin || rec.pin === String(pin || '').trim();
+  if (!ok) cache.put(key, String(fails + 1), 15 * 60);
+  return { ok: ok, gl: ok && !!rec.pin && /^gl$/i.test(rec.rolle || '') };
+}
+function requirePin_(name, pin) {
+  var r = checkPin(name, pin);
+  if (r.locked) throw new Error('Zu viele falsche PIN-Eingaben – bitte 15 Minuten warten.');
+  if (!r.ok) throw new Error('Falscher PIN.');
+  return r;
 }
 
 function submitRapport(payload) {
   if (!payload || !payload.ma) throw new Error('Bitte zuerst den Namen wählen.');
-  if (!checkPin(payload.ma, payload.pin).ok) throw new Error('Falscher PIN.');
+  requirePin_(payload.ma, payload.pin);
   var entries = (payload.entries || []).filter(function (e) {
     return e && e.auftrag && Number(e.stunden) > 0;
   });
@@ -573,6 +595,268 @@ function exportMesserli() {
   ui.alert('Messerli-Export erstellt', msg, ui.ButtonSet.OK);
 }
 
+/* ------------------------------------------------------------------
+ * Ferienanträge und Absenzmeldungen (ersetzt die Papierformulare
+ * "Ferienantrag" rosa und "Absenzmeldung" grün).
+ * Ablauf: Mitarbeiter stellt Antrag -> Mail-Hinweis an GL -> GL meldet
+ * sich in der App mit Name + PIN an und bewilligt/lehnt ab -> Mail an
+ * den Mitarbeiter. Bewilligte Tage werden in der App-Woche vorbefüllt.
+ * ------------------------------------------------------------------ */
+var ANTRAG_HEADER = ['ID', 'Eingang', 'Typ', 'Mitarbeiter Nr.', 'Mitarbeiter', 'Art / Grund', 'Von', 'Bis',
+                     'Tage', 'Halber Tag', 'Abzug (halber Tag)', 'Bemerkung', 'Aufgebot abgegeben',
+                     'Soldmeldekarte abgegeben', 'Status', 'Entscheid am', 'Entscheid von', 'Kommentar GL',
+                     'Ausbezahlt (LB)', 'Ausgebucht (Sekretariat)'];
+var A = { ID: 0, EINGANG: 1, TYP: 2, NR: 3, MA: 4, ART: 5, VON: 6, BIS: 7, TAGE: 8, HALB: 9, ABZUG: 10,
+          BEM: 11, AUFGEBOT: 12, SOLD: 13, STATUS: 14, ENT_AM: 15, ENT_VON: 16, KOMMENTAR: 17 };
+
+function antragSheet_() {
+  var ss = ss_(), sh = ss.getSheetByName(SHEET_ANTRAG);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_ANTRAG);
+    sh.getRange(1, 1, 1, ANTRAG_HEADER.length).setValues([ANTRAG_HEADER]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+    sh.getRange('G:H').setNumberFormat('@');   // Datum als Text JJJJ-MM-TT, keine Umwandlung durch Sheets
+  }
+  return sh;
+}
+function antragRows_() {
+  var v = antragSheet_().getDataRange().getValues(), out = [];
+  for (var i = 1; i < v.length; i++) if (v[i][A.ID]) out.push({ row: i + 1, v: v[i] });
+  return out;
+}
+function antragObj_(r) {
+  var v = r.v;
+  return { id: String(v[A.ID]), eingang: fmtTs_(v[A.EINGANG]), typ: String(v[A.TYP]), ma: String(v[A.MA]),
+           art: String(v[A.ART]), von: isoText_(v[A.VON]), bis: isoText_(v[A.BIS]), tage: Number(v[A.TAGE]) || 0,
+           halb: String(v[A.HALB]) === 'ja', abzug: String(v[A.ABZUG] || ''), bem: String(v[A.BEM] || ''),
+           aufgebot: String(v[A.AUFGEBOT]) === 'ja', sold: String(v[A.SOLD]) === 'ja',
+           status: String(v[A.STATUS]), entAm: fmtTs_(v[A.ENT_AM]), entVon: String(v[A.ENT_VON] || ''),
+           kommentar: String(v[A.KOMMENTAR] || '') };
+}
+function isoText_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return String(v || '').trim();
+}
+function fmtTs_(v) {
+  return (v instanceof Date) ? Utilities.formatDate(v, Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm') : String(v || '');
+}
+function isoToDate_(iso) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], 12, 0, 0) : null;
+}
+function chFromIso_(iso) { var d = isoToDate_(iso); return d ? fmtChDate_(d) : String(iso || ''); }
+
+/** Gesetzliche/betriebliche Feiertage Kanton Zürich (inkl. 1. Mai laut Betriebsweisung arbeitsfrei). */
+function feiertage_(year) {
+  var a = year % 19, b = Math.floor(year / 100), c = year % 100, d = Math.floor(b / 4), e = b % 4,
+      f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30,
+      i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+      month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+  var ostern = new Date(year, month - 1, day, 12);
+  function off(n) { var x = new Date(ostern); x.setDate(x.getDate() + n); return isoDate_(x); }
+  return [year + '-01-01', year + '-01-02', off(-2), off(1), year + '-05-01', off(39), off(50),
+          year + '-08-01', year + '-12-25', year + '-12-26'];
+}
+/** Arbeitstage Mo–Fr ohne Feiertage zwischen zwei ISO-Daten (inklusive). */
+function arbeitstage_(vonIso, bisIso) {
+  var d = isoToDate_(vonIso), end = isoToDate_(bisIso), n = 0, cache = {};
+  if (!d || !end || end < d) return 0;
+  while (d <= end) {
+    var y = d.getFullYear(); if (!cache[y]) cache[y] = feiertage_(y);
+    var wd = d.getDay();
+    if (wd >= 1 && wd <= 5 && cache[y].indexOf(isoDate_(d)) < 0) n++;
+    d.setDate(d.getDate() + 1);
+  }
+  return n;
+}
+function glEmpfaenger_() {
+  var map = readMitarbeiter_(), out = [];
+  Object.keys(map).forEach(function (k) { var r = map[k];
+    if (/^gl$/i.test(r.rolle || '') && /@/.test(r.email || '')) out.push(r.email); });
+  return out;
+}
+function appUrl_() { try { return ScriptApp.getService().getUrl() || ''; } catch (e) { return ''; } }
+
+/**
+ * Neuer Antrag. p = { ma, pin, typ: 'Ferien'|'Absenz', art, von, bis (ISO), halb, abzug: 'Ferien'|'ÜZ',
+ *                     bem, aufgebot, sold }
+ */
+function submitAntrag(p) {
+  if (!p || !p.ma) throw new Error('Bitte zuerst den Namen wählen.');
+  requirePin_(p.ma, p.pin);
+  var rec = readMitarbeiter_()[String(p.ma).trim().toLowerCase()] || {};
+  var typ = p.typ === 'Absenz' ? 'Absenz' : 'Ferien';
+  var von = String(p.von || ''), bis = String(p.bis || p.von || '');
+  if (!isoToDate_(von) || !isoToDate_(bis)) throw new Error('Bitte Von- und Bis-Datum wählen.');
+  if (bis < von) throw new Error('Das Bis-Datum liegt vor dem Von-Datum.');
+  var halb = !!p.halb && von === bis;
+  var tage = halb ? 0.5 : arbeitstage_(von, bis);
+  if (!(tage > 0)) throw new Error('Im gewählten Zeitraum liegen keine Arbeitstage.');
+  var art = typ === 'Ferien' ? 'Ferien' : String(p.art || '').trim();
+  if (!art) throw new Error('Bitte den Abwesenheitsgrund wählen.');
+
+  var lock = LockService.getScriptLock(); lock.waitLock(15000);
+  var id;
+  try {
+    var sh = antragSheet_();
+    id = 'A' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyMMddHHmmss') +
+         Math.floor(Math.random() * 90 + 10);
+    var row = [id, new Date(), typ, rec.nr || '', rec.name || p.ma, art, von, bis, tage, halb ? 'ja' : 'nein',
+               halb ? (p.abzug === 'ÜZ' ? 'ÜZ-Konto' : 'Ferienkonto') : '', String(p.bem || '').slice(0, 300),
+               typ === 'Absenz' ? (p.aufgebot ? 'ja' : 'nein') : '', typ === 'Absenz' ? (p.sold ? 'ja' : 'nein') : '',
+               'offen', '', '', '', '', ''];
+    var r = sh.getLastRow() + 1;
+    sh.getRange(r, 7, 1, 2).setNumberFormat('@');
+    sh.getRange(r, 1, 1, row.length).setValues([row]);
+  } finally { lock.releaseLock(); }
+
+  var an = glEmpfaenger_();
+  if (an.length) {
+    try {
+      var zeit = halb ? chFromIso_(von) + ' (halber Tag)' : chFromIso_(von) + ' – ' + chFromIso_(bis);
+      MailApp.sendEmail({
+        to: an.join(','),
+        subject: (typ === 'Ferien' ? 'Ferienantrag' : 'Absenzmeldung') + ': ' + (rec.name || p.ma) + ', ' + zeit,
+        body: 'Neuer ' + (typ === 'Ferien' ? 'Ferienantrag' : 'Absenzmeldung (' + art + ')') + ' von ' +
+              (rec.name || p.ma) + ':\n\n' + zeit + ', ' + String(tage).replace('.', ',') + ' Tag(e)' +
+              (p.bem ? '\nBemerkung: ' + p.bem : '') +
+              '\n\nBitte in der App mit Name und PIN anmelden und unter "Freigabe" bewilligen oder ablehnen:\n' +
+              appUrl_() + '\n\nDiese Nachricht wurde automatisch erstellt.'
+      });
+    } catch (e) {}
+  }
+  return { ok: true, id: id, tage: tage, glMail: an.length > 0 };
+}
+
+/** Eigene Anträge (neueste zuerst, max. 30). */
+function getMeineAntraege(name, pin) {
+  requirePin_(name, pin);
+  var key = String(name || '').trim().toLowerCase();
+  return antragRows_().filter(function (r) { return String(r.v[A.MA]).trim().toLowerCase() === key; })
+    .map(antragObj_).reverse().slice(0, 30);
+}
+
+/** Offenen Antrag zurückziehen (nur eigene; bewilligte nur über das Büro). */
+function zurueckziehenAntrag(name, pin, id) {
+  requirePin_(name, pin);
+  var lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    var r = antragRows_().filter(function (x) { return String(x.v[A.ID]) === String(id); })[0];
+    if (!r || String(r.v[A.MA]).trim().toLowerCase() !== String(name).trim().toLowerCase())
+      throw new Error('Antrag nicht gefunden.');
+    if (r.v[A.STATUS] !== 'offen') throw new Error('Nur offene Anträge können zurückgezogen werden. Bitte im Büro melden.');
+    antragSheet_().getRange(r.row, A.STATUS + 1, 1, 2).setValues([['zurückgezogen', new Date()]]);
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+
+/** GL-Ansicht: offene Anträge plus Entscheide der letzten 30 Tage, mit Überschneidungen. */
+function getFreigabeListe(name, pin) {
+  var chk = requirePin_(name, pin);
+  if (!chk.gl) throw new Error('Keine Berechtigung (nur GL).');
+  var all = antragRows_().map(antragObj_);
+  var aktiv = all.filter(function (a) { return a.status === 'offen' || a.status === 'bewilligt'; });
+  var grenze = new Date(); grenze.setDate(grenze.getDate() - 30);
+  function overlaps(a) {
+    return aktiv.filter(function (b) { return b.id !== a.id && b.ma !== a.ma && b.von <= a.bis && b.bis >= a.von; })
+      .map(function (b) { return b.ma + ' (' + chFromIso_(b.von) + '–' + chFromIso_(b.bis) + ', ' + b.status + ')'; });
+  }
+  var offen = all.filter(function (a) { return a.status === 'offen'; })
+    .map(function (a) { a.ueberschneidung = overlaps(a); return a; });
+  var erledigt = antragRows_().filter(function (r) {
+      var am = r.v[A.ENT_AM]; return r.v[A.STATUS] !== 'offen' && am instanceof Date && am >= grenze; })
+    .map(antragObj_).reverse().slice(0, 30);
+  return { offen: offen, erledigt: erledigt };
+}
+
+/** GL entscheidet: entscheid = 'bewilligt' | 'abgelehnt'. */
+function entscheidAntrag(name, pin, id, entscheid, kommentar) {
+  var chk = requirePin_(name, pin);
+  if (!chk.gl) throw new Error('Keine Berechtigung (nur GL).');
+  if (entscheid !== 'bewilligt' && entscheid !== 'abgelehnt') throw new Error('Ungültiger Entscheid.');
+  if (entscheid === 'abgelehnt' && !String(kommentar || '').trim()) throw new Error('Bitte bei einer Ablehnung kurz begründen.');
+  var lock = LockService.getScriptLock(); lock.waitLock(15000);
+  var a;
+  try {
+    var r = antragRows_().filter(function (x) { return String(x.v[A.ID]) === String(id); })[0];
+    if (!r) throw new Error('Antrag nicht gefunden.');
+    if (r.v[A.STATUS] !== 'offen') throw new Error('Bereits erledigt: ' + r.v[A.STATUS] + ' von ' + (r.v[A.ENT_VON] || '–') + '.');
+    var gl = (readMitarbeiter_()[String(name).trim().toLowerCase()] || {}).name || name;
+    antragSheet_().getRange(r.row, A.STATUS + 1, 1, 4)
+      .setValues([[entscheid, new Date(), gl, String(kommentar || '').slice(0, 300)]]);
+    r.v[A.STATUS] = entscheid; r.v[A.ENT_VON] = gl; r.v[A.KOMMENTAR] = kommentar || '';
+    a = antragObj_(r);
+  } finally { lock.releaseLock(); }
+  try {
+    var mail = emailForName_(a.ma);
+    if (mail) {
+      var zeit = a.halb ? chFromIso_(a.von) + ' (halber Tag)' : chFromIso_(a.von) + ' – ' + chFromIso_(a.bis);
+      MailApp.sendEmail({
+        to: mail,
+        subject: (a.typ === 'Ferien' ? 'Ferienantrag ' : 'Absenzmeldung ') + entscheid + ': ' + zeit,
+        body: 'Hallo ' + a.ma + '\n\nDein ' + (a.typ === 'Ferien' ? 'Ferienantrag' : 'Absenzmeldung (' + a.art + ')') +
+              ' für ' + zeit + ' wurde von ' + a.entVon + ' ' + entscheid + '.' +
+              (a.kommentar ? '\nKommentar: ' + a.kommentar : '') +
+              (entscheid === 'bewilligt' ? '\n\nDie Tage erscheinen in der App automatisch in deiner Wochenerfassung.' : '') +
+              '\n\nDiese Nachricht wurde automatisch erstellt.'
+      });
+    }
+  } catch (e) {}
+  return { ok: true };
+}
+
+/**
+ * Bewilligte Abwesenheiten einer Woche für die Vorbefüllung der App:
+ * [{ auftrag: 'Ferien Bezug', h: [Mo..So] }, ...]
+ */
+function getBewilligteWoche(name, pin, weekIso) {
+  requirePin_(name, pin);
+  var mon = isoToDate_(weekIso); if (!mon) return [];
+  var key = String(name || '').trim().toLowerCase(), labels = Object.keys(readKostenarten_().absenz);
+  function label(a) {
+    if (a.typ === 'Ferien') {
+      if (a.halb && a.abzug === 'ÜZ-Konto') return labels.filter(function (l) { return /kompensation/i.test(l); })[0] || 'Kompensation Überstunden (frei)';
+      return labels.filter(function (l) { return /^ferien bezug$/i.test(l); })[0] || 'Ferien Bezug';
+    }
+    return a.art;
+  }
+  var byLabel = {}, feiern = feiertage_(mon.getFullYear()).concat(feiertage_(mon.getFullYear() + 1));
+  antragRows_().forEach(function (r) {
+    if (r.v[A.STATUS] !== 'bewilligt' || String(r.v[A.MA]).trim().toLowerCase() !== key) return;
+    var a = antragObj_(r), lb = label(a);
+    for (var i = 0; i < 5; i++) {
+      var d = new Date(mon); d.setDate(d.getDate() + i);
+      var iso = isoDate_(d);
+      if (iso < a.von || iso > a.bis || feiern.indexOf(iso) >= 0) continue;
+      if (!byLabel[lb]) byLabel[lb] = [0, 0, 0, 0, 0, 0, 0];
+      byLabel[lb][i] = a.halb ? SOLL_STUNDEN / 10 : SOLL_STUNDEN / 5;
+    }
+  });
+  return Object.keys(byLabel).map(function (k) { return { auftrag: k, h: byLabel[k] }; });
+}
+
+/** Täglicher Hinweis an die GL, wenn Anträge seit mehr als 3 Tagen offen sind. */
+function erinnerungAntraege() {
+  var grenze = new Date(); grenze.setDate(grenze.getDate() - 3);
+  var alt = antragRows_().filter(function (r) {
+    return r.v[A.STATUS] === 'offen' && r.v[A.EINGANG] instanceof Date && r.v[A.EINGANG] < grenze; }).map(antragObj_);
+  var an = glEmpfaenger_();
+  if (!alt.length || !an.length) return;
+  MailApp.sendEmail({
+    to: an.join(','),
+    subject: alt.length + ' offene Anträge warten auf Freigabe',
+    body: alt.map(function (a) { return '- ' + a.ma + ': ' + a.typ + ' ' + chFromIso_(a.von) + ' – ' + chFromIso_(a.bis) +
+                                  ' (eingegangen ' + a.eingang + ')'; }).join('\n') +
+          '\n\nFreigabe in der App unter "Freigabe": ' + appUrl_()
+  });
+}
+function setupErinnerung() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'erinnerungAntraege') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('erinnerungAntraege').timeBased().everyDays(1).atHour(7).create();
+  try { SpreadsheetApp.getUi().alert('Tägliche Erinnerung (ca. 07:00) für offene Anträge ist eingerichtet.'); } catch (e) {}
+}
+
 /* ---------------- Hilfsfunktionen ---------------- */
 
 function readKostenarten_() {
@@ -587,13 +871,14 @@ function readKostenarten_() {
   return out;
 }
 
-/** name (klein) -> { nr, kostenart, pin } aus dem Mitarbeiter-Reiter (Spalten A, B, D, E). */
+/** name (klein) -> { nr, name, email, kostenart, pin, rolle } aus dem Mitarbeiter-Reiter (Spalten A–F). */
 function readMitarbeiter_() {
   var map = {};
   var v = ss_().getSheetByName(SHEET_MITARBEITER).getDataRange().getValues();
   for (var i = 1; i < v.length; i++) {
     var nr = trim_(v[i][0]), name = trim_(v[i][1]), kostenart = trim_(v[i][3]), pin = trim_(v[i][4]);
-    if (name) map[name.toLowerCase()] = { nr: nr, kostenart: kostenart, pin: pin };
+    if (name) map[name.toLowerCase()] = { nr: nr, name: name, email: trim_(v[i][2]), kostenart: kostenart,
+                                          pin: pin, rolle: trim_(v[i][5]) };
   }
   return map;
 }

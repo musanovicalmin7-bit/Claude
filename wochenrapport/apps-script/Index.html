@@ -154,6 +154,50 @@
   #signCancel{ border:1px solid var(--line); background:var(--paper); color:var(--ink-soft); }
   #signOk{ border:0; background:var(--ok); color:#fff; }
   #signOk[disabled]{ opacity:.5; }
+
+  /* ---- Reiter: Woche / Ferien & Absenz / Freigabe ---- */
+  .tabs{ display:flex; gap:6px; margin:0 0 14px; }
+  .tabs button{ flex:1; padding:11px 6px; font:inherit; font-size:14px; font-weight:600; border:1px solid var(--line);
+    border-radius:10px; background:var(--card); color:var(--ink-soft); cursor:pointer; }
+  .tabs button.sel{ border-color:var(--blau); background:var(--blau-tint); color:var(--blau); }
+  .tabs .cnt{ display:inline-block; min-width:18px; padding:0 5px; margin-left:4px; border-radius:9px;
+    background:var(--warn); color:#fff; font-size:12px; }
+  .seg{ display:flex; gap:6px; }
+  .seg button{ flex:1; padding:12px; font:inherit; font-size:15px; font-weight:600; border:1px solid var(--line);
+    border-radius:10px; background:var(--card); color:var(--ink-soft); cursor:pointer; }
+  .seg button.sel{ border-color:var(--blau); background:var(--blau-tint); color:var(--blau); }
+  .field{ margin-top:12px; }
+  .field label{ display:block; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); margin-bottom:6px; }
+  .field input[type=date],.field select,.field textarea{ width:100%; padding:12px; font:inherit; font-size:16px;
+    border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); }
+  .field textarea{ min-height:70px; resize:vertical; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .check{ display:flex; gap:10px; align-items:center; margin-top:10px; font-size:15px; }
+  .check input{ width:22px; height:22px; }
+  .tagbox{ margin-top:12px; padding:12px 14px; background:var(--blau-tint); border:1px solid var(--line);
+    border-radius:12px; font-size:15px; display:flex; justify-content:space-between; }
+  .tagbox b{ font-size:20px; color:var(--blau); }
+  .bigbtn{ width:100%; margin-top:14px; padding:16px; font:inherit; font-size:17px; font-weight:700; border:0;
+    border-radius:12px; background:var(--ok); color:#fff; cursor:pointer; }
+  .bigbtn[disabled]{ opacity:.6; }
+  .alist{ display:flex; flex-direction:column; gap:8px; }
+  .aitem{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:15px; }
+  .aitem .ah{ display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+  .aitem .ah b{ font-size:16px; }
+  .aitem .am{ color:var(--ink-soft); font-size:13px; margin-top:4px; }
+  .st{ font-size:12px; font-weight:700; border-radius:999px; padding:2px 9px; white-space:nowrap; }
+  .st.offen{ background:#FBF1DC; color:#8a5a0b; }
+  .st.bewilligt{ background:#E3F1E7; color:var(--ok); }
+  .st.abgelehnt{ background:#FBECE4; color:var(--warn); }
+  .st.zurückgezogen{ background:var(--paper); color:var(--ink-soft); }
+  .abtns{ display:flex; gap:8px; margin-top:10px; }
+  .abtns button{ flex:1; padding:12px; font:inherit; font-size:15px; font-weight:700; border-radius:10px; cursor:pointer; }
+  .b-ok{ border:0; background:var(--ok); color:#fff; }
+  .b-no{ border:1px solid var(--warn); background:var(--card); color:var(--warn); }
+  .b-soft{ border:1px solid var(--line); background:var(--paper); color:var(--ink-soft); }
+  .aitem textarea{ width:100%; margin-top:8px; padding:10px; font:inherit; font-size:14px; border:1px solid var(--line);
+    border-radius:8px; min-height:44px; }
+  .ovl{ margin-top:6px; font-size:13px; color:#8a5a0b; }
 </style>
 </head>
 <body>
@@ -170,7 +214,7 @@
   <!-- Schritt 1: Name (nur beim ersten Mal) -->
   <section id="nameScreen" style="display:none">
     <h2>Wer bist du?</h2>
-    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 4 · Entwürfe werden zentral gesichert</div>
+    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5 · Ferienanträge mit Freigabe</div>
     <input id="nameSearch" placeholder="Name tippen …" autocomplete="off">
     <div id="nameList"></div>
   </section>
@@ -188,6 +232,51 @@
       <button id="pinOk" type="button" style="flex:2;padding:15px;font:inherit;font-size:16px;font-weight:700;
         border-radius:12px;border:0;background:var(--blau);color:#fff;cursor:pointer">Weiter</button>
     </div>
+  </section>
+
+  <!-- Reiter (nach der Anmeldung) -->
+  <nav class="tabs" id="tabs" style="display:none">
+    <button type="button" data-tab="woche" class="sel">Woche</button>
+    <button type="button" data-tab="antrag">Ferien / Absenz</button>
+    <button type="button" data-tab="freigabe" id="tabFreigabe" style="display:none">Freigabe<span class="cnt" id="frCnt" style="display:none"></span></button>
+  </nav>
+
+  <!-- Ferienantrag / Absenzmeldung -->
+  <section id="antragScreen" style="display:none">
+    <div class="seg" id="aTyp">
+      <button type="button" data-typ="Ferien" class="sel">Ferienantrag</button>
+      <button type="button" data-typ="Absenz">Absenzmeldung</button>
+    </div>
+    <div class="field" id="aArtWrap" style="display:none">
+      <label for="aArt">Abwesenheitsgrund</label>
+      <select id="aArt"></select>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="aVon">Von</label><input type="date" id="aVon"></div>
+      <div class="field"><label for="aBis">Bis und mit</label><input type="date" id="aBis"></div>
+    </div>
+    <label class="check" id="aHalbWrap" style="display:none"><input type="checkbox" id="aHalb"> Nur halber Tag (4 h)</label>
+    <div class="seg" id="aAbzug" style="display:none;margin-top:8px">
+      <button type="button" data-abzug="Ferien" class="sel">Abzug Ferienkonto</button>
+      <button type="button" data-abzug="ÜZ">Abzug ÜZ-Konto</button>
+    </div>
+    <div id="aBelege" style="display:none">
+      <label class="check"><input type="checkbox" id="aAufgebot"> Aufgebot abgegeben</label>
+      <label class="check"><input type="checkbox" id="aSold"> Soldmeldekarte abgegeben</label>
+    </div>
+    <div class="field"><label for="aBem">Bemerkung (optional)</label><textarea id="aBem" maxlength="300"></textarea></div>
+    <div class="tagbox"><span>Total Arbeitstage<br><small style="color:var(--ink-soft)">ohne Wochenende und Feiertage</small></span><b id="aTage">–</b></div>
+    <button class="bigbtn" id="aSend" type="button">Antrag senden</button>
+    <div class="block-label">Meine Anträge</div>
+    <div class="alist" id="aMeine"><div class="acempty">Lädt …</div></div>
+  </section>
+
+  <!-- Freigabe (nur GL) -->
+  <section id="freigabeScreen" style="display:none">
+    <div class="block-label">Offen</div>
+    <div class="alist" id="frOffen"><div class="acempty">Lädt …</div></div>
+    <div class="block-label">Entschieden (letzte 30 Tage)</div>
+    <div class="alist" id="frErledigt"></div>
   </section>
 
   <!-- Hauptschirm -->
@@ -283,7 +372,7 @@
     else { CURRENT=n; showMain(); }
   }
   function showPin(){
-    ["nameScreen","mainScreen","doneScreen"].forEach(function(id){ $(id).style.display="none"; });
+    ["nameScreen","mainScreen","doneScreen","antragScreen","freigabeScreen","tabs"].forEach(function(id){ $(id).style.display="none"; });
     $("sendbar").style.display="none"; $("who").style.display="none";
     $("pinScreen").style.display="";
     $("pinName").textContent=PENDING?PENDING.name:"";
@@ -296,7 +385,8 @@
     google.script.run
       .withSuccessHandler(function(res){
         btn.disabled=false; btn.textContent="Weiter";
-        if(res&&res.ok){ CURRENT={nr:PENDING.nr,name:PENDING.name,pinValue:val}; PENDING=null; showMain(); }
+        if(res&&res.ok){ CURRENT={nr:PENDING.nr,name:PENDING.name,pinValue:val,gl:!!res.gl}; PENDING=null; showMain(); }
+        else if(res&&res.locked){ showErr("Zu viele falsche Eingaben – bitte 15 Minuten warten."); }
         else { showErr("Falscher PIN – bitte nochmals versuchen."); $("pinInput").value=""; $("pinInput").focus(); }
       })
       .withFailureHandler(function(err){
@@ -709,6 +799,7 @@
   /* ---------- Screens ---------- */
   function showName(){
     $("nameScreen").style.display=""; $("mainScreen").style.display="none"; $("pinScreen").style.display="none";
+    $("antragScreen").style.display="none"; $("freigabeScreen").style.display="none"; $("tabs").style.display="none";
     $("sendbar").style.display="none"; $("doneScreen").style.display="none"; $("who").style.display="none";
     $("nameSearch").value=""; renderNameList(""); $("nameSearch").focus();
   }
@@ -716,16 +807,123 @@
     var me=savedName(); if(!me){ showName(); return; }
     $("whoName").textContent=me.name; $("who").style.display="";
     $("nameScreen").style.display="none"; $("doneScreen").style.display="none"; $("pinScreen").style.display="none";
-    $("mainScreen").style.display=""; $("sendbar").style.display="";
+    $("tabs").style.display=""; $("tabFreigabe").style.display=me.gl?"":"none";
+    showTab("woche");
     if(!weekStart) weekStart=weekWithDraft();   // Woche mit offenem Entwurf zuerst
     renderWeeks();
     if(!$("cards").children.length){
       var dr=loadDraft(weekStart);
       if(dr){ PROT=dr.prot||{}; dr.cards.forEach(function(c){ makeCard(c); }); }
-      else makeCard();
+      else { makeCard(); prefillBewilligt(); }
     }
     paintWeekTotal();
     syncFromServer();
+    if(me.gl) loadFreigabe();
+  }
+
+  /* ---------- Reiter ---------- */
+  function showTab(t){
+    $("tabs").querySelectorAll("button").forEach(function(b){ b.classList.toggle("sel",b.getAttribute("data-tab")===t); });
+    $("mainScreen").style.display=t==="woche"?"":"none"; $("sendbar").style.display=t==="woche"?"":"none";
+    $("antragScreen").style.display=t==="antrag"?"":"none";
+    $("freigabeScreen").style.display=t==="freigabe"?"":"none";
+    $("doneScreen").style.display="none";
+    if(t==="antrag"){ initAntrag(); loadMeine(); }
+    if(t==="freigabe") loadFreigabe();
+  }
+
+  /* ---------- Bewilligte Ferien/Absenzen in leere Woche übernehmen ---------- */
+  function prefillBewilligt(){
+    var me=CURRENT, wk=weekStart; if(!me||!wk) return;
+    google.script.run.withSuccessHandler(function(list){
+      if(!list||!list.length||CURRENT!==me||weekStart!==wk||!draftIsEmpty(collectCards())) return;
+      $("cards").innerHTML="";
+      list.forEach(function(c){ makeCard({auftrag:c.auftrag,h:c.h}); });
+      makeCard(); paintWeekTotal();
+      setStatus("Bewilligte Ferien/Absenzen eingetragen"); statusT=setTimeout(function(){ $("loading").classList.remove("show"); },3000);
+    }).withFailureHandler(function(){}).getBewilligteWoche(me.name,me.pinValue||"",wk);
+  }
+
+  /* ---------- Ferienantrag / Absenzmeldung ---------- */
+  var ANT={typ:"Ferien",abzug:"Ferien",init:false};
+  var ABS_FUER_ANTRAG=/kompensation|milit|zivil|weiterbild|schule|heirat|geburt|todesfall|amt|unbezahlt|diverse|bezahlte/i;
+  function initAntrag(){
+    if(!ANT.init){
+      ANT.init=true;
+      var opts=ABSENCES.filter(function(a){ return ABS_FUER_ANTRAG.test(a)&&!/abzug/i.test(a); });
+      $("aArt").innerHTML='<option value="">Bitte wählen …</option>'+opts.map(function(a){ return '<option>'+esc(a)+'</option>'; }).join("");
+    }
+    paintAntrag();
+  }
+  function isoOf(v){ return /^\d{4}-\d{2}-\d{2}$/.test(v||"")?v:""; }
+  function zaehleTage(von,bis){       // Vorschau Mo–Fr; Feiertage zieht der Server zusätzlich ab
+    if(!von||!bis||bis<von) return 0;
+    var d=new Date(von+"T12:00:00"), e=new Date(bis+"T12:00:00"), n=0;
+    while(d<=e){ var w=d.getDay(); if(w>=1&&w<=5) n++; d.setDate(d.getDate()+1); }
+    return n;
+  }
+  function paintAntrag(){
+    var fer=ANT.typ==="Ferien", von=isoOf($("aVon").value), bis=isoOf($("aBis").value)||von;
+    $("aTyp").querySelectorAll("button").forEach(function(b){ b.classList.toggle("sel",b.getAttribute("data-typ")===ANT.typ); });
+    $("aArtWrap").style.display=fer?"none":""; $("aBelege").style.display=fer?"none":"";
+    var eintag=von&&(!$("aBis").value||bis===von);
+    $("aHalbWrap").style.display=eintag?"":"none"; if(!eintag) $("aHalb").checked=false;
+    $("aAbzug").style.display=(fer&&$("aHalb").checked)?"flex":"none";
+    $("aAbzug").querySelectorAll("button").forEach(function(b){ b.classList.toggle("sel",b.getAttribute("data-abzug")===ANT.abzug); });
+    var t=$("aHalb").checked?0.5:zaehleTage(von,bis);
+    $("aTage").textContent=t?fmtH(t):"–";
+  }
+  function sendAntrag(){
+    var me=CURRENT; if(!me) return;
+    var von=isoOf($("aVon").value), bis=isoOf($("aBis").value)||von;
+    if(!von){ showErr("Bitte das Von-Datum wählen."); return; }
+    if(ANT.typ==="Absenz"&&!$("aArt").value){ showErr("Bitte den Abwesenheitsgrund wählen."); return; }
+    var btn=$("aSend"); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Wird gesendet …';
+    google.script.run.withSuccessHandler(function(res){
+      btn.disabled=false; btn.textContent="Antrag senden";
+      $("aVon").value=""; $("aBis").value=""; $("aHalb").checked=false; $("aBem").value="";
+      $("aAufgebot").checked=false; $("aSold").checked=false; paintAntrag();
+      setStatus("Antrag gesendet ("+fmtH(res.tage)+" Tage)"+(res.glMail?" – die GL wurde benachrichtigt.":".")); statusT=setTimeout(function(){ $("loading").classList.remove("show"); },4000);
+      loadMeine(); if(me.gl) loadFreigabe();
+    }).withFailureHandler(function(err){
+      btn.disabled=false; btn.textContent="Antrag senden";
+      showErr("Senden fehlgeschlagen: "+(err&&err.message?err.message:err));
+    }).submitAntrag({ ma:me.name, pin:me.pinValue||"", typ:ANT.typ, art:$("aArt").value, von:von, bis:bis,
+                      halb:$("aHalb").checked, abzug:ANT.abzug, bem:$("aBem").value,
+                      aufgebot:$("aAufgebot").checked, sold:$("aSold").checked });
+  }
+  function chIso(iso){ var p=String(iso||"").split("-"); return p.length===3?p[2]+"."+p[1]+"."+p[0]:iso; }
+  function antragHtml(a,mode){
+    var zeit=a.halb?chIso(a.von)+" (½ Tag, "+(a.abzug||"Ferienkonto")+")":chIso(a.von)+" – "+chIso(a.bis);
+    var titel=mode==="gl"?esc(a.ma):(a.typ==="Ferien"?"Ferien":esc(a.art));
+    var h='<div class="aitem" data-id="'+esc(a.id)+'"><div class="ah"><b>'+titel+'</b><span class="st '+esc(a.status)+'">'+esc(a.status)+'</span></div>'+
+      '<div>'+(mode==="gl"?(a.typ==="Ferien"?"Ferien":esc(a.art))+" · ":"")+zeit+" · <b>"+fmtH(a.tage)+"</b> Tag"+(a.tage===1?"":"e")+'</div>';
+    if(a.bem) h+='<div class="am">Bemerkung: '+esc(a.bem)+'</div>';
+    if(a.typ==="Absenz") h+='<div class="am">Aufgebot: '+(a.aufgebot?"ja":"nein")+' · Soldmeldekarte: '+(a.sold?"ja":"nein")+'</div>';
+    if(a.status!=="offen"&&a.entVon) h+='<div class="am">'+esc(a.status)+' von '+esc(a.entVon)+(a.entAm?' am '+esc(a.entAm):'')+(a.kommentar?' – '+esc(a.kommentar):'')+'</div>';
+    else h+='<div class="am">Eingang '+esc(a.eingang)+'</div>';
+    if(mode==="gl"&&a.ueberschneidung&&a.ueberschneidung.length) h+='<div class="ovl">Gleichzeitig abwesend: '+a.ueberschneidung.map(esc).join(", ")+'</div>';
+    if(mode==="gl"&&a.status==="offen") h+='<textarea placeholder="Kommentar (bei Ablehnung Pflicht)"></textarea>'+
+      '<div class="abtns"><button type="button" class="b-no" data-act="abgelehnt">Ablehnen</button><button type="button" class="b-ok" data-act="bewilligt">Bewilligen</button></div>';
+    if(mode==="me"&&a.status==="offen") h+='<div class="abtns"><button type="button" class="b-soft" data-act="zurueck">Zurückziehen</button></div>';
+    return h+'</div>';
+  }
+  function loadMeine(){
+    var me=CURRENT; if(!me) return;
+    google.script.run.withSuccessHandler(function(list){
+      $("aMeine").innerHTML=(list&&list.length)?list.map(function(a){ return antragHtml(a,"me"); }).join(""):'<div class="acempty">Noch keine Anträge.</div>';
+    }).withFailureHandler(function(err){ $("aMeine").innerHTML='<div class="acempty">'+esc(err&&err.message?err.message:err)+'</div>'; })
+      .getMeineAntraege(me.name,me.pinValue||"");
+  }
+  function loadFreigabe(){
+    var me=CURRENT; if(!me||!me.gl) return;
+    google.script.run.withSuccessHandler(function(res){
+      var o=res.offen||[], e=res.erledigt||[];
+      $("frOffen").innerHTML=o.length?o.map(function(a){ return antragHtml(a,"gl"); }).join(""):'<div class="acempty">Keine offenen Anträge.</div>';
+      $("frErledigt").innerHTML=e.length?e.map(function(a){ return antragHtml(a,"gl"); }).join(""):'<div class="acempty">–</div>';
+      $("frCnt").textContent=o.length; $("frCnt").style.display=o.length?"":"none";
+    }).withFailureHandler(function(err){ $("frOffen").innerHTML='<div class="acempty">'+esc(err&&err.message?err.message:err)+'</div>'; })
+      .getFreigabeListe(me.name,me.pinValue||"");
   }
 
   /* ---------- Events ---------- */
@@ -741,10 +939,34 @@
     $("cards").innerHTML=""; PROT={};
     var dr=loadDraft(weekStart);
     if(dr){ PROT=dr.prot||{}; dr.cards.forEach(function(c){ makeCard(c); }); }
-    else makeCard();
+    else { makeCard(); prefillBewilligt(); }
     paintWeekTotal();
   });
   $("addCard").addEventListener("click",function(){ makeCard(); });
+  $("tabs").addEventListener("click",function(e){ var b=e.target.closest?e.target.closest("button"):null; if(b) showTab(b.getAttribute("data-tab")); });
+  $("aTyp").addEventListener("click",function(e){ var b=e.target.closest?e.target.closest("button"):null; if(!b) return; ANT.typ=b.getAttribute("data-typ"); paintAntrag(); });
+  $("aAbzug").addEventListener("click",function(e){ var b=e.target.closest?e.target.closest("button"):null; if(!b) return; ANT.abzug=b.getAttribute("data-abzug"); paintAntrag(); });
+  ["aVon","aBis","aHalb"].forEach(function(id){ $(id).addEventListener("change",function(){
+    if(id==="aVon"&&$("aVon").value&&(!$("aBis").value||$("aBis").value<$("aVon").value)) $("aBis").value=$("aVon").value;
+    paintAntrag(); }); });
+  $("aSend").addEventListener("click",sendAntrag);
+  $("aMeine").addEventListener("click",function(e){
+    var b=e.target.closest?e.target.closest("button[data-act=zurueck]"):null; if(!b) return;
+    var id=b.closest(".aitem").getAttribute("data-id"); b.disabled=true;
+    google.script.run.withSuccessHandler(function(){ loadMeine(); if(CURRENT&&CURRENT.gl) loadFreigabe(); })
+      .withFailureHandler(function(err){ b.disabled=false; showErr(err&&err.message?err.message:String(err)); })
+      .zurueckziehenAntrag(CURRENT.name,CURRENT.pinValue||"",id);
+  });
+  $("frOffen").addEventListener("click",function(e){
+    var b=e.target.closest?e.target.closest("button[data-act]"):null; if(!b) return;
+    var item=b.closest(".aitem"), id=item.getAttribute("data-id"), act=b.getAttribute("data-act");
+    var kom=(item.querySelector("textarea")||{}).value||"";
+    if(act==="abgelehnt"&&!kom.trim()){ showErr("Bitte bei einer Ablehnung kurz begründen."); return; }
+    item.querySelectorAll("button").forEach(function(x){ x.disabled=true; });
+    google.script.run.withSuccessHandler(function(){ loadFreigabe(); })
+      .withFailureHandler(function(err){ item.querySelectorAll("button").forEach(function(x){ x.disabled=false; }); showErr(err&&err.message?err.message:String(err)); loadFreigabe(); })
+      .entscheidAntrag(CURRENT.name,CURRENT.pinValue||"",id,act,kom);
+  });
   $("pinBack").addEventListener("click",function(){ PENDING=null; showName(); });
   $("pinOk").addEventListener("click",submitPin);
   $("pinInput").addEventListener("keydown",function(e){ if(e.key==="Enter") submitPin(); });
