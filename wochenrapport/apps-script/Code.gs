@@ -689,9 +689,12 @@ function submitAntrag(p) {
   var von = String(p.von || ''), bis = String(p.bis || p.von || '');
   if (!isoToDate_(von) || !isoToDate_(bis)) throw new Error('Bitte Von- und Bis-Datum wählen.');
   if (bis < von) throw new Error('Das Bis-Datum liegt vor dem Von-Datum.');
-  var halb = !!p.halb && von === bis;
-  var tage = halb ? 0.5 : arbeitstage_(von, bis);
-  if (!(tage > 0)) throw new Error('Im gewählten Zeitraum liegen keine Arbeitstage.');
+  // Anzahl Tage trägt der Mitarbeiter selbst ein (Pensum, Teilzeit) – nur Plausibilität prüfen.
+  var tage = Number(String(p.tage || '').replace(',', '.'));
+  if (!(tage > 0) || Math.round(tage * 2) !== tage * 2) throw new Error('Bitte die Anzahl Arbeitstage eintragen (halbe Tage mit .5).');
+  var kalTage = Math.round((isoToDate_(bis) - isoToDate_(von)) / 86400000) + 1;
+  if (tage > kalTage) throw new Error('Mehr Tage eingetragen (' + tage + ') als der Zeitraum hat (' + kalTage + ').');
+  var halb = tage === 0.5 && von === bis;
   var art = typ === 'Ferien' ? 'Ferien' : String(p.art || '').trim();
   if (!art) throw new Error('Bitte den Abwesenheitsgrund wählen.');
 

@@ -76,9 +76,9 @@ Ersetzt die Papierformulare. Ablauf:
 
 1. Mitarbeiter meldet sich in der App an und öffnet den Reiter **Ferien / Absenz**.
    Ferienantrag oder Absenzmeldung (Militär/Zivilschutz, Weiterbildung, Schule, Kompensation …),
-   Von/Bis, bei einem einzelnen Tag optional halber Tag (bei Ferien: Abzug Ferien- oder ÜZ-Konto),
-   Bemerkung, bei Absenzen Aufgebot/Soldmeldekarte abgegeben. Die Arbeitstage werden ohne
-   Wochenende und Zürcher Feiertage gezählt (individuelles Pensum wird nicht berücksichtigt).
+   Von/Bis, **Anzahl Arbeitstage selbst eintragen** (wegen Pensum/Teilzeit, halbe Tage mit .5;
+   bei 0.5 Tag Ferien: Abzug Ferien- oder ÜZ-Konto wählen), Bemerkung, bei Absenzen
+   Aufgebot/Soldmeldekarte abgegeben.
 2. Der Antrag landet im Reiter **`Anträge`** (Status `offen`), alle GL-Personen erhalten eine
    Mail mit dem Link zur App.
 3. Die GL meldet sich mit Namen + PIN an und sieht den Reiter **Freigabe**: offene Anträge mit
