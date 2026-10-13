@@ -856,10 +856,19 @@
     paintAntrag();
   }
   function isoOf(v){ return /^\d{4}-\d{2}-\d{2}$/.test(v||"")?v:""; }
-  function zaehleTage(von,bis){       // Vorschau Mo–Fr; Feiertage zieht der Server zusätzlich ab
+  function isoD(d){ return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
+  function feiertage(y){                // Zürich, gleich wie feiertage_() im Code.gs
+    var a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+        h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+        mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1, os=new Date(y,mo-1,da,12);
+    function off(n){ var x=new Date(os); x.setDate(x.getDate()+n); return isoD(x); }
+    return [y+"-01-01",y+"-01-02",off(-2),off(1),y+"-05-01",off(39),off(50),y+"-08-01",y+"-12-25",y+"-12-26"];
+  }
+  function zaehleTage(von,bis){       // Mo–Fr ohne Feiertage (wie arbeitstage_() im Code.gs)
     if(!von||!bis||bis<von) return 0;
-    var d=new Date(von+"T12:00:00"), e=new Date(bis+"T12:00:00"), n=0;
-    while(d<=e){ var w=d.getDay(); if(w>=1&&w<=5) n++; d.setDate(d.getDate()+1); }
+    var d=new Date(von+"T12:00:00"), e=new Date(bis+"T12:00:00"), n=0, ft={};
+    while(d<=e){ var y=d.getFullYear(); if(!ft[y]) ft[y]=feiertage(y);
+      var w=d.getDay(); if(w>=1&&w<=5&&ft[y].indexOf(isoD(d))<0) n++; d.setDate(d.getDate()+1); }
     return n;
   }
   function paintAntrag(){
