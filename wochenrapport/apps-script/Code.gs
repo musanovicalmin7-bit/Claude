@@ -91,6 +91,7 @@ function onOpen() {
     .addItem('Messerli-Export erstellen …', 'exportMesserli')
     .addSeparator()
     .addItem('Erinnerung offene Anträge einrichten (täglich)', 'setupErinnerung')
+    .addItem('Test: Antrag-Mail an GL senden', 'testAntragMail')
     .addToUi();
 }
 
@@ -713,7 +714,7 @@ function submitAntrag(p) {
     sh.getRange(r, 1, 1, row.length).setValues([row]);
   } finally { lock.releaseLock(); }
 
-  var an = glEmpfaenger_();
+  var an = glEmpfaenger_(), mailErr = '';
   if (an.length) {
     try {
       var zeit = halb ? chFromIso_(von) + ' (halber Tag)' : chFromIso_(von) + ' – ' + chFromIso_(bis);
@@ -726,9 +727,9 @@ function submitAntrag(p) {
               '\n\nBitte in der App mit Name und PIN anmelden und unter "Freigabe" bewilligen oder ablehnen:\n' +
               appUrl_() + '\n\nDiese Nachricht wurde automatisch erstellt.'
       });
-    } catch (e) {}
+    } catch (e) { mailErr = String(e && e.message || e); console.error('Antrag-Mail an GL: ' + mailErr); }
   }
-  return { ok: true, id: id, tage: tage, glMail: an.length > 0 };
+  return { ok: true, id: id, tage: tage, glMail: an.length > 0 && !mailErr, mailErr: mailErr };
 }
 
 /** Eigene Anträge (neueste zuerst, max. 30). */
@@ -853,6 +854,17 @@ function erinnerungAntraege() {
           '\n\nFreigabe in der App unter "Freigabe": ' + appUrl_()
   });
 }
+/** Menü: zeigt, wer die Antrag-Mails bekommt, und schickt eine Testmail dorthin. */
+function testAntragMail() {
+  var ui = SpreadsheetApp.getUi(), an = glEmpfaenger_();
+  if (!an.length) { ui.alert('Niemand gefunden: Im Reiter Mitarbeiter braucht es in Spalte F "GL" und in Spalte C eine E-Mail.'); return; }
+  try {
+    MailApp.sendEmail({ to: an.join(','), subject: 'Test Ferienantrag-Mail',
+      body: 'Testmail aus dem Wochenrapport. Diese Adressen erhalten neue Ferienanträge und Absenzmeldungen:\n' + an.join('\n') });
+    ui.alert('Testmail gesendet an:\n' + an.join('\n') + '\n\nVerbleibendes Mail-Kontingent heute: ' + MailApp.getRemainingDailyQuota());
+  } catch (e) { ui.alert('Mail fehlgeschlagen: ' + (e && e.message || e)); }
+}
+
 function setupErinnerung() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'erinnerungAntraege') ScriptApp.deleteTrigger(t); });

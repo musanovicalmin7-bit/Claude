@@ -879,7 +879,8 @@
       btn.disabled=false; btn.textContent="Antrag senden";
       $("aVon").value=""; $("aBis").value=""; $("aTageIn").value=""; $("aBem").value="";
       $("aAufgebot").checked=false; $("aSold").checked=false; paintAntrag();
-      setStatus("Antrag gesendet ("+fmtH(res.tage)+" Tage)"+(res.glMail?" – die GL wurde benachrichtigt.":".")); statusT=setTimeout(function(){ $("loading").classList.remove("show"); },4000);
+      if(res.mailErr) showErr("Antrag gespeichert, aber die Mail an die GL ist fehlgeschlagen: "+res.mailErr);
+      else { setStatus("Antrag gesendet ("+fmtH(res.tage)+" Tage)"+(res.glMail?" – die GL wurde per Mail benachrichtigt.":" – keine GL-Mail hinterlegt.")); statusT=setTimeout(function(){ $("loading").classList.remove("show"); },5000); }
       loadMeine(); if(me.gl) loadFreigabe();
     }).withFailureHandler(function(err){
       btn.disabled=false; btn.textContent="Antrag senden";
