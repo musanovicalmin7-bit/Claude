@@ -91,6 +91,12 @@ Ersetzt die Papierformulare. Ablauf:
 6. Lohnbuchhaltung/Sekretariat haken im Sheet die Spalten *Ausbezahlt (LB)* und
    *Ausgebucht (Sekretariat)* ab.
 
+Salden: Reiter **`Salden`** (A Nr., B Name, C Ferien-Saldo h, D Überstunden-Saldo h, E Überzeit-Saldo h,
+F Stand). Wird wöchentlich aus der Jahresstundenkontrolle (Messerli) neu eingefügt (ab Zeile 2 alles ersetzen).
+Die GL sieht bei jedem offenen Antrag den Saldo, bereits bewilligte, noch nicht gebuchte Ferientage und den
+Saldo nach diesem Antrag (Tage ≈ Stunden / 8). Mitarbeiter mit PIN sehen nach dem Login ihren eigenen Saldo
+(Reiter Woche und Ferien / Absenz), Mitarbeiter ohne PIN nicht.
+
 Sicherheit: GL-Rechte prüft nur der Server nach korrektem PIN. Nach 5 falschen PIN-Eingaben
 ist der Name 15 Minuten gesperrt. Die Rolle wird nie an den Browser geschickt.
 

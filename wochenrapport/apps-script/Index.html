@@ -201,6 +201,8 @@
   .aitem textarea{ width:100%; margin-top:8px; padding:10px; font:inherit; font-size:14px; border:1px solid var(--line);
     border-radius:8px; min-height:44px; }
   .ovl{ margin-top:6px; font-size:13px; color:#8a5a0b; }
+  .saldo{ margin-top:8px; padding:8px 10px; border-radius:8px; background:var(--blau-tint); font-size:13px; line-height:1.5; }
+  .saldo b{ font-size:14px; } .saldo .neg{ color:var(--warn); font-weight:700; }
 </style>
 </head>
 <body>
@@ -270,6 +272,7 @@
     </div>
     <div class="field"><label for="aBem">Bemerkung (optional)</label><textarea id="aBem" maxlength="300"></textarea></div>
     <button class="bigbtn" id="aSend" type="button">Antrag senden</button>
+    <div class="saldo" id="aSaldo" style="display:none"></div>
     <div class="block-label">Meine Anträge</div>
     <div class="alist" id="aMeine"><div class="acempty">Lädt …</div></div>
   </section>
@@ -284,6 +287,7 @@
 
   <!-- Hauptschirm -->
   <section id="mainScreen" style="display:none">
+    <div class="saldo" id="wSaldo" style="display:none;margin:0 0 12px"></div>
     <div class="block-label">Woche</div>
     <div class="weeks" id="weeks"></div>
 
@@ -803,6 +807,7 @@
   function showName(){
     $("nameScreen").style.display=""; $("mainScreen").style.display="none"; $("pinScreen").style.display="none";
     $("antragScreen").style.display="none"; $("freigabeScreen").style.display="none"; $("tabs").style.display="none";
+    $("wSaldo").style.display="none"; $("aSaldo").style.display="none";
     $("sendbar").style.display="none"; $("doneScreen").style.display="none"; $("who").style.display="none";
     $("nameSearch").value=""; renderNameList(""); $("nameSearch").focus();
   }
@@ -821,6 +826,7 @@
     }
     paintWeekTotal();
     syncFromServer();
+    loadSaldo();
     if(me.gl) loadFreigabe();
   }
 
@@ -890,6 +896,19 @@
                       aufgebot:$("aAufgebot").checked, sold:$("aSold").checked });
   }
   function chIso(iso){ var p=String(iso||"").split("-"); return p.length===3?p[2]+"."+p[1]+"."+p[0]:iso; }
+  function h2(v){ return v==null?"–":(Math.round(v*100)/100).toFixed(2).replace(/\.?0+$/,"").replace(".",","); }
+  function t1(v){ return v==null?"–":(Math.round(v*10)/10).toFixed(1).replace(/\.0$/,"").replace(".",","); }
+  function saldoHtml(s,tage,typ){       // Ferien in Stunden (Messerli), Tage ≈ Stunden / 8
+    if(!s) return '<div class="saldo">Kein Saldo hinterlegt (Reiter „Salden“).</div>';
+    var h='<div class="saldo"><b>Saldo Stand '+esc(s.stand||"?")+'</b><br>Ferien: <b>'+h2(s.ferien)+' h</b>'+(s.ferien!=null?' (≈ '+t1(s.ferien/8)+' Tage)':'')+
+      ' · Überstunden: <b>'+h2(s.ueberstd)+' h</b>'+(s.ueberzeit?' · Überzeit: '+h2(s.ueberzeit)+' h':'');
+    if(s.bewilligtTage) h+='<br>Bereits bewilligt, noch nicht gebucht: '+h2(s.bewilligtTage)+' Tage';
+    if(typ==="Ferien"&&tage&&s.ferien!=null){
+      var rest=s.ferien-(s.bewilligtTage+tage)*8;
+      h+='<br>Nach diesem Antrag: <span class="'+(rest<0?'neg':'')+'">≈ '+h2(rest)+' h ('+t1(rest/8)+' Tage)</span>';
+    }
+    return h+'</div>';
+  }
   function antragHtml(a,mode){
     var zeit=a.von===a.bis?chIso(a.von)+(a.halb?" (½ Tag, "+(a.abzug||"Ferienkonto")+")":""):chIso(a.von)+" – "+chIso(a.bis);
     var titel=mode==="gl"?esc(a.ma):(a.typ==="Ferien"?"Ferien":esc(a.art));
@@ -899,14 +918,26 @@
     if(a.typ==="Absenz") h+='<div class="am">Aufgebot: '+(a.aufgebot?"ja":"nein")+' · Soldmeldekarte: '+(a.sold?"ja":"nein")+'</div>';
     if(a.status!=="offen"&&a.entVon) h+='<div class="am">'+esc(a.status)+' von '+esc(a.entVon)+(a.entAm?' am '+esc(a.entAm):'')+(a.kommentar?' – '+esc(a.kommentar):'')+'</div>';
     else h+='<div class="am">Eingang '+esc(a.eingang)+'</div>';
+    if(mode==="gl"&&a.status==="offen") h+=saldoHtml(a.saldo,a.tage,a.typ);
     if(mode==="gl"&&a.ueberschneidung&&a.ueberschneidung.length) h+='<div class="ovl">Gleichzeitig abwesend: '+a.ueberschneidung.map(esc).join(", ")+'</div>';
     if(mode==="gl"&&a.status==="offen") h+='<textarea placeholder="Kommentar (bei Ablehnung Pflicht)"></textarea>'+
       '<div class="abtns"><button type="button" class="b-no" data-act="abgelehnt">Ablehnen</button><button type="button" class="b-ok" data-act="bewilligt">Bewilligen</button></div>';
     if(mode==="me"&&a.status==="offen") h+='<div class="abtns"><button type="button" class="b-soft" data-act="zurueck">Zurückziehen</button></div>';
     return h+'</div>';
   }
+  function loadSaldo(){                // eigener Saldo: oben in "Woche" und im Reiter Ferien/Absenz
+    var me=CURRENT; if(!me) return;
+    google.script.run.withSuccessHandler(function(s){
+      if(CURRENT!==me) return;
+      var html=s?'<b>Dein Saldo, Stand '+esc(s.stand||"?")+'</b><br>Ferien: <b>'+h2(s.ferien)+' h</b>'+(s.ferien!=null?' (≈ '+t1(s.ferien/8)+' Tage)':'')+
+        ' · Überstunden: <b>'+h2(s.ueberstd)+' h</b>'+(s.ueberzeit?' · Überzeit: '+h2(s.ueberzeit)+' h':'')+
+        (s.bewilligtTage?'<br>Bewilligte Ferien, noch nicht gebucht: '+t1(s.bewilligtTage)+' Tage':''):"";
+      ["wSaldo","aSaldo"].forEach(function(id){ $(id).innerHTML=html; $(id).style.display=html?"":"none"; });
+    }).withFailureHandler(function(){}).getMeinSaldo(me.name,me.pinValue||"");
+  }
   function loadMeine(){
     var me=CURRENT; if(!me) return;
+
     google.script.run.withSuccessHandler(function(list){
       $("aMeine").innerHTML=(list&&list.length)?list.map(function(a){ return antragHtml(a,"me"); }).join(""):'<div class="acempty">Noch keine Anträge.</div>';
     }).withFailureHandler(function(err){ $("aMeine").innerHTML='<div class="acempty">'+esc(err&&err.message?err.message:err)+'</div>'; })

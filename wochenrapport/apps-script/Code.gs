@@ -22,6 +22,7 @@ var SHEET_MITARBEITER = 'Mitarbeiter';
 var SHEET_KOSTEN     = 'Kostenarten';
 var SHEET_ENTWURF    = 'Entwürfe';      // Zwischenstände der App (pro Mitarbeiter und Woche), ausgeblendet
 var SHEET_ANTRAG     = 'Anträge';
+var SHEET_SALDEN     = 'Salden';       // wöchentlich aus der Jahresstundenkontrolle (Messerli) eingefügt
 var SOLL_STUNDEN      = 40;
 
 /**
@@ -122,6 +123,7 @@ function ensureSheets_() {
   var mit = ss.getSheetByName(SHEET_MITARBEITER);
   if (!mit) mit = ss.insertSheet(SHEET_MITARBEITER);
   mit.getRange(1, 1, 1, mitHeader.length).setValues([mitHeader]).setFontWeight('bold');
+  saldenSheet_();
   if (!ss.getSheetByName(SHEET_KOSTEN)) {
     var ks = ss.insertSheet(SHEET_KOSTEN);
     ks.appendRow(['Typ', 'Kostenart-Nummer (exakt wie Messerli)']);
@@ -740,6 +742,52 @@ function getMeineAntraege(name, pin) {
     .map(antragObj_).reverse().slice(0, 30);
 }
 
+/** Eigener Saldo für den Reiter Ferien/Absenz – nur für Mitarbeiter mit PIN. */
+function getMeinSaldo(name, pin) {
+  requirePin_(name, pin);
+  var rec = readMitarbeiter_()[String(name || '').trim().toLowerCase()] || {};
+  if (!rec.pin) return null;
+  return saldoFuer_(saldenMap_(), rec.name || name, antragRows_().map(antragObj_), '');
+}
+
+/* ---------- Salden (Reiter "Salden") ----------
+ * Spalten: A Nr., B Name, C Ferien-Saldo (h), D Überstunden-Saldo (h), E Überzeit-Saldo (h), F Stand.
+ * Wird wöchentlich aus der Jahresstundenkontrolle eingefügt (alles ersetzen ab Zeile 2). */
+var SALDEN_HEADER = ['Mitarbeiter Nr.', 'Name', 'Ferien-Saldo (h)', 'Überstunden-Saldo (h)', 'Überzeit-Saldo (h)', 'Stand'];
+function saldenSheet_() {
+  var ss = ss_(), sh = ss.getSheetByName(SHEET_SALDEN);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_SALDEN);
+    sh.getRange(1, 1, 1, SALDEN_HEADER.length).setValues([SALDEN_HEADER]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+function saldenMap_() {
+  var v = saldenSheet_().getDataRange().getValues(), map = {};
+  function num(x) { var n = Number(String(x).replace(/'/g, '').replace(',', '.')); return isNaN(n) || x === '' ? null : n; }
+  for (var i = 1; i < v.length; i++) {
+    var name = trim_(v[i][1]); if (!name) continue;
+    var st = parseAnyDate_(v[i][5]), stand = st ? isoText_(st) : '';
+    var rec = { ferien: num(v[i][2]), ueberstd: num(v[i][3]), ueberzeit: num(v[i][4]), stand: stand };
+    map['n:' + name.toLowerCase()] = rec; if (trim_(v[i][0])) map['#' + trim_(v[i][0])] = rec;
+  }
+  return map;
+}
+/** Saldo eines Mitarbeiters + bereits bewilligte Ferientage ab Stand (noch nicht in Messerli). */
+function saldoFuer_(salden, ma, alle, ohneId) {
+  var rec = readMitarbeiter_()[String(ma || '').trim().toLowerCase()] || {};
+  var s = salden['#' + (rec.nr || '')] || salden['n:' + String(ma || '').trim().toLowerCase()];
+  if (!s) return null;
+  var key = String(ma).trim().toLowerCase(), bewilligt = 0;
+  (alle || []).forEach(function (a) {
+    if (a.id === ohneId || a.status !== 'bewilligt' || a.typ !== 'Ferien' || String(a.ma).trim().toLowerCase() !== key) return;
+    if (!s.stand || a.bis > s.stand) bewilligt += a.tage;
+  });
+  return { ferien: s.ferien, ueberstd: s.ueberstd, ueberzeit: s.ueberzeit, stand: s.stand ? chFromIso_(s.stand) : '',
+           bewilligtTage: bewilligt };
+}
+
 /** Offenen Antrag zurückziehen (nur eigene; bewilligte nur über das Büro). */
 function zurueckziehenAntrag(name, pin, id) {
   requirePin_(name, pin);
@@ -765,8 +813,9 @@ function getFreigabeListe(name, pin) {
     return aktiv.filter(function (b) { return b.id !== a.id && b.ma !== a.ma && b.von <= a.bis && b.bis >= a.von; })
       .map(function (b) { return b.ma + ' (' + chFromIso_(b.von) + '–' + chFromIso_(b.bis) + ', ' + b.status + ')'; });
   }
+  var salden = saldenMap_();
   var offen = all.filter(function (a) { return a.status === 'offen'; })
-    .map(function (a) { a.ueberschneidung = overlaps(a); return a; });
+    .map(function (a) { a.ueberschneidung = overlaps(a); a.saldo = saldoFuer_(salden, a.ma, all, a.id); return a; });
   var erledigt = antragRows_().filter(function (r) {
       var am = r.v[A.ENT_AM]; return r.v[A.STATUS] !== 'offen' && am instanceof Date && am >= grenze; })
     .map(antragObj_).reverse().slice(0, 30);
