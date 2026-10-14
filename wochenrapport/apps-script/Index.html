@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root{
+    --paper:#F4F6F8; --card:#FFFFFF; --ink:#1C2430; --ink-soft:#5A6676;
+    --line:#D6DCE2; --blau:#2E5E8C; --blau-tint:#EDF3F8; --ok:#2E7D51; --warn:#B3541E;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; }
+  body{ background:var(--paper); color:var(--ink);
+    font:17px/1.45 "Helvetica Neue",Helvetica,Arial,system-ui,sans-serif; }
+  .wrap{ max-width:520px; margin:0 auto; padding:16px 14px 120px; }
+
+  header.top{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding-bottom:10px; border-bottom:3px solid var(--blau); margin-bottom:14px; }
+  h1{ margin:0; font-size:20px; font-weight:700; }
+  .who{ font-size:14px; color:var(--ink-soft); text-align:right; }
+  .who b{ color:var(--ink); display:block; font-size:15px; }
+  .who button{ border:0; background:none; color:var(--blau); font:inherit; font-size:13px;
+    text-decoration:underline; cursor:pointer; padding:2px 0; }
+
+  .msg{ margin:0 0 14px; padding:12px 14px; border-radius:8px; font-size:15px; display:none; }
+  .msg.show{ display:block; }
+  .msg.err{ background:#FBECE4; border:1px solid var(--warn); color:#7a3915; }
+  .msg.info{ background:var(--blau-tint); border:1px solid var(--line); color:var(--ink-soft); }
+
+  /* ---- Schritt 1: Name ---- */
+  #nameScreen h2{ font-size:18px; margin:6px 0 12px; }
+  #nameSearch{ width:100%; padding:14px; font:inherit; font-size:17px; border:1px solid var(--line);
+    border-radius:10px; background:var(--card); }
+  #nameList{ margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+  .namebtn{ text-align:left; font:inherit; font-size:17px; padding:14px 16px; border:1px solid var(--line);
+    border-radius:10px; background:var(--card); color:var(--ink); cursor:pointer; }
+  .namebtn:active{ background:var(--blau-tint); }
+
+  /* ---- Woche ---- */
+  .block-label{ font-size:13px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--ink-soft); margin:16px 0 8px; }
+  .weeks{ display:flex; gap:8px; }
+  .week{ flex:1; padding:12px 8px; border:1px solid var(--line); border-radius:10px;
+    background:var(--card); text-align:center; font:inherit; cursor:pointer; color:var(--ink); }
+  .week .wt{ font-size:15px; font-weight:700; display:block; }
+  .week .wd{ font-size:13px; color:var(--ink-soft); }
+  .week.sel{ border-color:var(--blau); background:var(--blau-tint); box-shadow:inset 0 0 0 1px var(--blau); }
+
+  /* ---- Auftrag-Karten ---- */
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px;
+    margin-bottom:12px; box-shadow:0 1px 2px rgba(28,36,48,.06); position:relative; }
+  .card .del{ position:absolute; top:8px; right:10px; border:0; background:none; color:var(--ink-soft);
+    font-size:18px; cursor:pointer; padding:4px 8px; }
+  .card label{ display:block; font-size:13px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--ink-soft); margin-bottom:6px; }
+  .card input.auftrag{ width:100%; padding:14px; font:inherit; font-size:17px;
+    border:1px solid var(--line); border-radius:10px; background:var(--paper); color:var(--ink); }
+
+  .daysgrid{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-top:12px; }
+  .dbtn{ padding:9px 2px; border:1px solid var(--line); border-radius:10px; background:var(--paper);
+    text-align:center; font:inherit; cursor:pointer; color:var(--ink); }
+  .dbtn .dw{ font-size:12px; color:var(--ink-soft); display:block; }
+  .dbtn .dh{ font-size:14px; font-weight:700; min-height:18px; display:block;
+    font-variant-numeric:tabular-nums; }
+  .dbtn.on{ border-color:var(--blau); background:var(--blau-tint); }
+  .dbtn.on .dw{ color:var(--blau); }
+  .dbtn.editing{ box-shadow:inset 0 0 0 2px var(--blau); }
+
+  .stepper{ display:flex; align-items:center; gap:12px; margin-top:12px; }
+  .stepper button{ width:56px; height:56px; border-radius:12px; border:1px solid var(--line);
+    background:var(--paper); font-size:26px; font-weight:700; color:var(--blau); cursor:pointer; }
+  .stepper button:active{ background:var(--blau-tint); }
+  .stepper .val{ flex:1; text-align:center; font-size:30px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .stepper .val small{ display:block; font-size:12px; font-weight:400; color:var(--ink-soft);
+    text-transform:uppercase; letter-spacing:.06em; }
+  .cardtotal{ margin-top:10px; text-align:right; font-size:14px; color:var(--ink-soft); }
+  .cardtotal b{ color:var(--blau); font-variant-numeric:tabular-nums; }
+
+  .addrow{ width:100%; padding:13px; font:inherit; font-size:16px; border:1px dashed var(--line);
+    border-radius:12px; background:none; color:var(--blau); cursor:pointer; margin-bottom:8px; }
+
+  .weektotal{ margin-top:6px; padding:12px 16px; background:var(--blau-tint); border:1px solid var(--line);
+    border-radius:12px; display:flex; justify-content:space-between; align-items:baseline; font-size:15px; }
+  .weektotal b{ font-size:22px; font-variant-numeric:tabular-nums; color:var(--blau); }
+
+  /* ---- Protokoll Arbeitszeiten (GAV) ---- */
+  .prot{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:6px 12px 12px; }
+  .prothead,.protrow{ display:grid; grid-template-columns:52px 1fr 1fr 1fr 1fr; gap:6px; align-items:center; }
+  .prothead{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft);
+    padding:8px 0 4px; text-align:center; }
+  .prothead span:first-child{ text-align:left; }
+  .protrow{ padding:5px 0; border-top:1px solid var(--paper); }
+  .protrow .pd{ font-size:14px; font-weight:700; }
+  .protrow .pd small{ display:block; font-weight:400; font-size:11px; color:var(--ink-soft); }
+  .protrow input{ width:100%; padding:8px 2px; font:inherit; font-size:14px; text-align:center;
+    border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); }
+  .pcell{ display:flex; flex-direction:column; gap:3px; }
+  .protempty{ padding:12px 4px; color:var(--ink-soft); font-size:14px; }
+  .addp{ display:block; margin-top:3px; padding:2px 6px; font:inherit; font-size:10px; color:var(--blau);
+    background:none; border:1px dashed var(--line); border-radius:6px; cursor:pointer; }
+  .protrow.extra{ border-top:0; padding-top:0; }
+  .protrow.extra .pd3{ font-size:11px; color:var(--ink-soft); white-space:nowrap; }
+  .protrow.extra .rm3{ border:0; background:none; color:var(--ink-soft); font-size:12px;
+    cursor:pointer; padding:2px 5px; }
+
+  /* ---- Senden ---- */
+  .sendbar{ position:fixed; left:0; right:0; bottom:0; padding:12px 14px calc(12px + env(safe-area-inset-bottom));
+    background:linear-gradient(transparent, var(--paper) 30%); }
+  .sendbar .inner{ max-width:520px; margin:0 auto; }
+  #send{ width:100%; padding:18px; font:inherit; font-size:19px; font-weight:700; border:0;
+    border-radius:14px; background:var(--ok); color:#fff; cursor:pointer;
+    box-shadow:0 2px 8px rgba(46,125,81,.35); }
+  #send[disabled]{ opacity:.6; }
+
+  /* ---- Erfolg ---- */
+  #doneScreen{ text-align:center; padding:60px 20px; }
+  #doneScreen .check{ width:96px; height:96px; margin:0 auto 18px; border-radius:50%;
+    background:var(--ok); color:#fff; font-size:52px; line-height:96px; }
+  #doneScreen h2{ font-size:22px; margin:0 0 6px; }
+  #doneScreen p{ color:var(--ink-soft); margin:0 0 26px; }
+  #doneScreen button{ font:inherit; font-size:17px; font-weight:600; padding:14px 22px;
+    border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--blau); cursor:pointer; }
+
+  /* ---- Autocomplete ---- */
+  .acbox{ position:absolute; z-index:50; background:var(--card); border:1px solid var(--line);
+    border-radius:10px; box-shadow:0 10px 28px rgba(0,0,0,.2); max-height:270px; overflow:auto; display:none; }
+  .acbox.open{ display:block; }
+  .acitem{ display:flex; gap:10px; align-items:baseline; padding:13px 14px; cursor:pointer; font-size:16px;
+    border-bottom:1px solid var(--paper); }
+  .acitem .acnr{ font-variant-numeric:tabular-nums; font-weight:700; color:var(--blau); white-space:nowrap; }
+  .acitem .aclabel{ color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .acitem.active{ background:var(--blau-tint); }
+  .acempty{ padding:12px 14px; color:var(--ink-soft); font-size:14px; }
+
+  .spinner{ width:18px; height:18px; border:2.5px solid rgba(255,255,255,.4); border-top-color:#fff;
+    border-radius:50%; display:inline-block; vertical-align:-3px; margin-right:8px; animation:spin .7s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion:reduce){ .spinner{ animation:none; } }
+
+  /* ---- Unterschrift ---- */
+  .signoverlay{ position:fixed; inset:0; background:rgba(20,26,32,.55); z-index:100; display:none;
+    align-items:flex-end; justify-content:center; }
+  .signoverlay.open{ display:flex; }
+  .signsheet{ background:var(--card); border-radius:16px 16px 0 0; width:100%; max-width:520px;
+    padding:18px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .signsheet h3{ margin:0 0 4px; font-size:18px; }
+  .signsheet p{ margin:0 0 12px; font-size:14px; color:var(--ink-soft); }
+  #signCanvas{ width:100%; height:180px; border:2px dashed var(--line); border-radius:12px;
+    background:#fff; touch-action:none; display:block; }
+  .signbtns{ display:flex; gap:10px; margin-top:14px; }
+  .signbtns button{ flex:1; padding:15px; font:inherit; font-size:16px; font-weight:700;
+    border-radius:12px; cursor:pointer; }
+  #signClear{ border:1px solid var(--line); background:var(--paper); color:var(--ink-soft); }
+  #signCancel{ border:1px solid var(--line); background:var(--paper); color:var(--ink-soft); }
+  #signOk{ border:0; background:var(--ok); color:#fff; }
+  #signOk[disabled]{ opacity:.5; }
+
+  /* ---- Reiter: Woche / Ferien & Absenz / Freigabe ---- */
+  .tabs{ display:flex; gap:6px; margin:0 0 14px; }
+  .tabs button{ flex:1; padding:11px 6px; font:inherit; font-size:14px; font-weight:600; border:1px solid var(--line);
+    border-radius:10px; background:var(--card); color:var(--ink-soft); cursor:pointer; }
+  .tabs button.sel{ border-color:var(--blau); background:var(--blau-tint); color:var(--blau); }
+  .tabs .cnt{ display:inline-block; min-width:18px; padding:0 5px; margin-left:4px; border-radius:9px;
+    background:var(--warn); color:#fff; font-size:12px; }
+  .seg{ display:flex; gap:6px; }
+  .seg button{ flex:1; padding:12px; font:inherit; font-size:15px; font-weight:600; border:1px solid var(--line);
+    border-radius:10px; background:var(--card); color:var(--ink-soft); cursor:pointer; }
+  .seg button.sel{ border-color:var(--blau); background:var(--blau-tint); color:var(--blau); }
+  .field{ margin-top:12px; }
+  .field label{ display:block; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); margin-bottom:6px; }
+  .field input[type=date],.field select,.field textarea{ width:100%; padding:12px; font:inherit; font-size:16px;
+    border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); }
+  .field textarea{ min-height:70px; resize:vertical; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .check{ display:flex; gap:10px; align-items:center; margin-top:10px; font-size:15px; }
+  .check input{ width:22px; height:22px; }
+  .tagbox{ margin-top:12px; padding:12px 14px; background:var(--blau-tint); border:1px solid var(--line);
+    border-radius:12px; font-size:15px; display:flex; justify-content:space-between; }
+  .tagbox{ align-items:center; gap:12px; }
+  .tagbox label{ font-size:15px; color:var(--ink); }
+  .tagbox input{ width:96px; padding:10px; font:inherit; font-size:20px; font-weight:700; text-align:right;
+    border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--blau); }
+  .bigbtn{ width:100%; margin-top:14px; padding:16px; font:inherit; font-size:17px; font-weight:700; border:0;
+    border-radius:12px; background:var(--ok); color:#fff; cursor:pointer; }
+  .bigbtn[disabled]{ opacity:.6; }
+  .alist{ display:flex; flex-direction:column; gap:8px; }
+  .aitem{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:15px; }
+  .aitem .ah{ display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+  .aitem .ah b{ font-size:16px; }
+  .aitem .am{ color:var(--ink-soft); font-size:13px; margin-top:4px; }
+  .st{ font-size:12px; font-weight:700; border-radius:999px; padding:2px 9px; white-space:nowrap; }
+  .st.offen{ background:#FBF1DC; color:#8a5a0b; }
+  .st.bewilligt{ background:#E3F1E7; color:var(--ok); }
+  .st.abgelehnt{ background:#FBECE4; color:var(--warn); }
+  .st.zurückgezogen{ background:var(--paper); color:var(--ink-soft); }
+  .abtns{ display:flex; gap:8px; margin-top:10px; }
+  .abtns button{ flex:1; padding:12px; font:inherit; font-size:15px; font-weight:700; border-radius:10px; cursor:pointer; }
+  .b-ok{ border:0; background:var(--ok); color:#fff; }
+  .b-no{ border:1px solid var(--warn); background:var(--card); color:var(--warn); }
+  .b-soft{ border:1px solid var(--line); background:var(--paper); color:var(--ink-soft); }
+  .aitem textarea{ width:100%; margin-top:8px; padding:10px; font:inherit; font-size:14px; border:1px solid var(--line);
+    border-radius:8px; min-height:44px; }
+  .ovl{ margin-top:6px; font-size:13px; color:#8a5a0b; }
+  /* ---- Problem melden ---- */
+  .probfoot{ margin-top:28px; text-align:center; }
+  .probfoot #probOpen{ font:inherit; font-size:14px; color:var(--ink-soft); background:none; border:1px dashed var(--line);
+    border-radius:10px; padding:10px 14px; cursor:pointer; }
+  .probbox{ margin-top:10px; text-align:left; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .probbox p{ margin:0 0 8px; font-size:14px; color:var(--ink-soft); }
+  .probbox textarea{ width:100%; padding:10px; font:inherit; font-size:15px; border:1px solid var(--line); border-radius:8px; min-height:90px; }
+  .probbox .row{ display:flex; gap:8px; margin-top:8px; }
+  .probbox .row button{ flex:1; padding:12px; font:inherit; font-size:15px; font-weight:700; border-radius:10px; cursor:pointer; }
+  .probok{ margin-top:10px; color:var(--ok); font-weight:600; }
+  .saldo{ margin-top:8px; padding:8px 10px; border-radius:8px; background:var(--blau-tint); font-size:13px; line-height:1.5; }
+  .saldo b{ font-size:14px; } .saldo .neg{ color:var(--warn); font-weight:700; }
+  .saldo .stand{ display:inline-block; margin-bottom:4px; font-size:12px; color:var(--ink-soft); }
+  .saldo .zeile{ display:flex; gap:0 14px; flex-wrap:wrap; }
+  .saldo .zeile span b{ font-size:17px; }
+  .saldo .detail{ margin-top:8px; padding:7px 12px; font:inherit; font-size:13px; font-weight:600; border:1px solid var(--blau);
+    border-radius:8px; background:var(--card); color:var(--blau); cursor:pointer; }
+  .saldo textarea{ width:100%; margin-top:8px; padding:8px; font:inherit; font-size:14px; border:1px solid var(--line); border-radius:8px; min-height:54px; }
+  .saldo .row{ display:flex; gap:8px; margin-top:6px; }
+  .saldo .row button{ flex:1; padding:9px; font:inherit; font-size:14px; font-weight:700; border-radius:8px; cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Wochenrapport</h1>
+    <div class="who" id="who" style="display:none"><b id="whoName"></b>
+      <button id="changeName" type="button">Name ändern</button></div>
+  </header>
+
+  <div id="loading" class="msg info show">Lädt …</div>
+  <div class="msg err" id="err"></div>
+
+  <!-- Schritt 1: Name (nur beim ersten Mal) -->
+  <section id="nameScreen" style="display:none">
+    <h2>Wer bist du?</h2>
+    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.2 · Ferienanträge mit Freigabe</div>
+    <input id="nameSearch" placeholder="Name tippen …" autocomplete="off">
+    <div id="nameList"></div>
+  </section>
+
+  <!-- Schritt 1b: PIN (nur wenn für den Namen ein PIN hinterlegt ist) -->
+  <section id="pinScreen" style="display:none">
+    <h2>PIN eingeben</h2>
+    <p id="pinName" style="color:var(--ink-soft);margin:0 0 12px"></p>
+    <input id="pinInput" type="tel" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="••••"
+      style="width:100%;padding:14px;font-size:26px;text-align:center;letter-spacing:8px;
+             border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)">
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button id="pinBack" type="button" style="flex:1;padding:15px;font:inherit;font-size:16px;font-weight:700;
+        border-radius:12px;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);cursor:pointer">Zurück</button>
+      <button id="pinOk" type="button" style="flex:2;padding:15px;font:inherit;font-size:16px;font-weight:700;
+        border-radius:12px;border:0;background:var(--blau);color:#fff;cursor:pointer">Weiter</button>
+    </div>
+  </section>
+
+  <!-- Reiter (nach der Anmeldung) -->
+  <nav class="tabs" id="tabs" style="display:none">
+    <button type="button" data-tab="woche" class="sel">Woche</button>
+    <button type="button" data-tab="antrag">Ferien / Absenz</button>
+    <button type="button" data-tab="freigabe" id="tabFreigabe" style="display:none">Freigabe<span class="cnt" id="frCnt" style="display:none"></span></button>
+  </nav>
+
+  <!-- Ferienantrag / Absenzmeldung -->
+  <section id="antragScreen" style="display:none">
+    <div class="seg" id="aTyp">
+      <button type="button" data-typ="Ferien" class="sel">Ferienantrag</button>
+      <button type="button" data-typ="Absenz">Absenzmeldung</button>
+    </div>
+    <div class="field" id="aArtWrap" style="display:none">
+      <label for="aArt">Abwesenheitsgrund</label>
+      <select id="aArt"></select>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="aVon">Von</label><input type="date" id="aVon"></div>
+      <div class="field"><label for="aBis">Bis und mit</label><input type="date" id="aBis"></div>
+    </div>
+    <div class="tagbox"><span><label for="aTageIn">Anzahl Arbeitstage</label><br><small style="color:var(--ink-soft)">selbst eintragen, halbe Tage mit .5</small></span>
+      <input type="number" id="aTageIn" min="0.5" step="0.5" inputmode="decimal" placeholder="z. B. 5"></div>
+    <div class="seg" id="aAbzug" style="display:none;margin-top:8px">
+      <button type="button" data-abzug="Ferien" class="sel">Abzug Ferienkonto</button>
+      <button type="button" data-abzug="ÜZ">Abzug ÜZ-Konto</button>
+    </div>
+    <div id="aBelege" style="display:none">
+      <label class="check"><input type="checkbox" id="aAufgebot"> Aufgebot abgegeben</label>
+      <label class="check"><input type="checkbox" id="aSold"> Soldmeldekarte abgegeben</label>
+    </div>
+    <div class="field"><label for="aBem">Bemerkung (optional)</label><textarea id="aBem" maxlength="300"></textarea></div>
+    <button class="bigbtn" id="aSend" type="button">Antrag senden</button>
+    <div class="saldo" id="aSaldo" style="display:none"></div>
+    <div class="block-label">Meine Anträge</div>
+    <div class="alist" id="aMeine"><div class="acempty">Lädt …</div></div>
+  </section>
+
+  <!-- Freigabe (nur GL) -->
+  <section id="freigabeScreen" style="display:none">
+    <div class="block-label">Offen</div>
+    <div class="alist" id="frOffen"><div class="acempty">Lädt …</div></div>
+    <div class="block-label">Entschieden (letzte 30 Tage)</div>
+    <div class="alist" id="frErledigt"></div>
+  </section>
+
+  <!-- Hauptschirm -->
+  <section id="mainScreen" style="display:none">
+    <div class="saldo" id="wSaldo" style="display:none;margin:0 0 12px"></div>
+    <div class="block-label">Woche</div>
+    <div class="weeks" id="weeks"></div>
+
+    <div class="block-label">Aufträge dieser Woche</div>
+    <div id="cards"></div>
+    <button class="addrow" id="addCard" type="button">+ weiterer Auftrag</button>
+
+    <div class="block-label">Arbeitszeiten (Beginn · Pause · Ende)</div>
+    <div class="prot" id="prot">
+      <div class="prothead"><span>Tag</span><span>Beginn</span><span>Znüni</span><span>Mittag</span><span>Ende</span></div>
+      <div id="protRows"><div class="protempty">Erscheint automatisch, sobald Tage angetippt sind.</div></div>
+    </div>
+
+    <div class="weektotal"><span>Total Woche</span><b id="weekTotal">0 h</b></div>
+  </section>
+
+  <!-- Problem mit der App melden (auf jedem Schirm, auch ohne Anmeldung) -->
+  <div class="probfoot" id="probFoot"><button type="button" id="probOpen">⚠ Problem mit der App melden</button></div>
+
+  <div class="sendbar" id="sendbar" style="display:none"><div class="inner">
+    <button id="send" type="button">Woche abschicken</button>
+  </div></div>
+
+  <!-- Unterschrift -->
+  <div class="signoverlay" id="signOverlay">
+    <div class="signsheet">
+      <h3>Mit Unterschrift bestätigen</h3>
+      <p>Bitte im Feld mit dem Finger unterschreiben – damit bestätigst du deine Woche.</p>
+      <canvas id="signCanvas"></canvas>
+      <div class="signbtns">
+        <button id="signCancel" type="button">Zurück</button>
+        <button id="signClear" type="button">Löschen</button>
+        <button id="signOk" type="button" disabled>Senden</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Erfolg -->
+  <section id="doneScreen" style="display:none">
+    <div class="check">✓</div>
+    <h2>Erfasst!</h2>
+    <p id="doneText"></p>
+    <p id="mailText" style="color:var(--ink-soft);font-size:14px;margin:-16px 0 26px;display:none"></p>
+    <div id="pdfWrap" style="display:none;margin-bottom:14px">
+      <a id="pdfBtn" href="#" target="_blank" rel="noopener" style="display:inline-block;
+        padding:14px 22px;border-radius:12px;background:var(--blau);color:#fff;font-weight:600;
+        text-decoration:none">📄 Mein PDF ansehen</a>
+    </div>
+    <button id="again" type="button">Neue Woche erfassen</button>
+  </section>
+</div>
+
+<script>
+  var PROJECTS=[], NAMES=[];
+  // Fallback, falls der Kostenarten-Reiter leer ist; wird beim Laden durch die Serverliste ersetzt.
+  var ABSENCES=["Unfall","Krank","Ferien Bezug","Schule","Weiterbildung"];
+  var KEY_DRAFT="zeit-draft-woche";        // alter Schlüssel (bis Sept. 2026), wird beim Start migriert
+  var KEY_PREFIX="zeit-entwurf-";         // Entwurf pro Person und Woche: zeit-entwurf-<Nr>-YYYY-MM-DD (ab 5.2)
+  var KEY_LAST="zeit-entwurf-last";         // Montag der zuletzt bearbeiteten Woche
+  var STORAGE_OK=true;
+  function uKey(){ return CURRENT?String(CURRENT.nr||CURRENT.name).replace(/\s+/g,"_")+"-":"?-"; }   // Entwürfe nie personenübergreifend
+  var MEM={};                             // Entwürfe dieser Sitzung im Speicher (Woche -> JSON); Browser-Speicher nur als Zusatz
+  var CURRENT=null;                     // gewählter Name – gilt nur für diese Sitzung (Startschirm = Namenswahl)
+  var DW=["Mo","Di","Mi","Do","Fr","Sa","So"];
+  var weekStart=null;                    // ISO des Montags
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  function isoDate(d){ return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
+  function chDate(d){ return ("0"+d.getDate()).slice(-2)+"."+("0"+(d.getMonth()+1)).slice(-2)+"."+d.getFullYear(); }
+  function chShort(d){ return ("0"+d.getDate()).slice(-2)+"."+("0"+(d.getMonth()+1)).slice(-2)+"."; }
+  function mondayOf(d){ var x=new Date(d); var day=(x.getDay()+6)%7; x.setDate(x.getDate()-day);
+    x.setHours(12,0,0,0); return x; }
+  function addDays(iso,n){ var d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n); return d; }
+  function fmtH(n){ return String(Math.round(n*10)/10).replace(".",","); }
+  function showErr(t){ var e=$("err"); e.textContent=String(t).replace(/^(Error|Exception):\s*/,""); e.classList.add("show");
+    setTimeout(function(){ e.classList.remove("show"); },5000); }
+
+  /* ---------- Name (bewusst NICHT gespeichert – Startschirm ist immer die Namenswahl) ---------- */
+  function savedName(){ return CURRENT; }
+  function renderNameList(q){
+    q=(q||"").toLowerCase();
+    var html="";
+    NAMES.forEach(function(n,i){
+      if(!q||n.name.toLowerCase().indexOf(q)>=0) html+='<button class="namebtn" data-i="'+i+'" type="button">'+esc(n.name)+"</button>";
+    });
+    $("nameList").innerHTML=html||'<div class="acempty">Kein Name gefunden.</div>';
+  }
+  var PENDING=null;                     // Name, der noch auf PIN-Eingabe wartet
+  function pickName(n){
+    if(n.pin){ PENDING=n; showPin(); }
+    else { CURRENT=n; showMain(); }
+  }
+  function showPin(){
+    ["nameScreen","mainScreen","doneScreen","antragScreen","freigabeScreen","tabs"].forEach(function(id){ $(id).style.display="none"; });
+    $("sendbar").style.display="none"; $("who").style.display="none";
+    $("pinScreen").style.display="";
+    $("pinName").textContent=PENDING?PENDING.name:"";
+    $("pinInput").value=""; $("pinInput").focus();
+  }
+  function submitPin(){
+    var val=$("pinInput").value.trim();
+    if(!val){ showErr("Bitte PIN eingeben."); return; }
+    var btn=$("pinOk"); btn.disabled=true; btn.textContent="Prüfe …";
+    google.script.run
+      .withSuccessHandler(function(res){
+        btn.disabled=false; btn.textContent="Weiter";
+        if(res&&res.ok){ CURRENT={nr:PENDING.nr,name:PENDING.name,pinValue:val,gl:!!res.gl}; PENDING=null; showMain(); }
+        else if(res&&res.locked){ showErr("Zu viele falsche Eingaben – bitte 15 Minuten warten."); }
+        else { showErr("Falscher PIN – bitte nochmals versuchen."); $("pinInput").value=""; $("pinInput").focus(); }
+      })
+      .withFailureHandler(function(err){
+        btn.disabled=false; btn.textContent="Weiter";
+        showErr("Prüfung fehlgeschlagen: "+(err&&err.message?err.message:err));
+      })
+      .checkPin(PENDING.name,val);
+  }
+
+  /* ---------- Wochen-Auswahl: diese + letzte Woche ---------- */
+  function renderWeeks(){
+    var thisMon=isoDate(mondayOf(new Date()));
+    var lastMon=isoDate(addDays(thisMon,-7));
+    function label(iso){ var a=new Date(iso+"T12:00:00"), b=addDays(iso,6);
+      return chShort(a)+" – "+chShort(b); }
+    $("weeks").innerHTML=
+      '<button type="button" class="week'+(weekStart===lastMon?" sel":"")+'" data-iso="'+lastMon+'">'+
+        '<span class="wt">Letzte Woche</span><span class="wd">'+label(lastMon)+"</span></button>"+
+      '<button type="button" class="week'+(weekStart===thisMon?" sel":"")+'" data-iso="'+thisMon+'">'+
+        '<span class="wt">Diese Woche</span><span class="wd">'+label(thisMon)+"</span></button>";
+  }
+
+  /* ---------- Auftrag-Karten ----------
+     Pro Karte: ein Auftrag + 7 Tages-Knöpfe. Tippen = 8 h setzen,
+     nochmal tippen = Tag zum Anpassen wählen (Stepper), 0 h = aus. */
+  function makeCard(data){
+    data=data||{};
+    var div=document.createElement("div"); div.className="card";
+    var hours=(data.h&&data.h.length===7)?data.h.slice():[0,0,0,0,0,0,0];
+    var editing=-1;
+    var dbtns='';
+    for(var i=0;i<7;i++){ dbtns+='<button type="button" class="dbtn" data-i="'+i+'">'+
+      '<span class="dw">'+DW[i]+'</span><span class="dh"></span></button>'; }
+    div.innerHTML='<button class="del" type="button" aria-label="Entfernen">✕</button>'+
+      '<label>Auftrag Nr. oder Absenz</label>'+
+      '<input class="auftrag" autocomplete="off" placeholder="Nummer tippen …">'+
+      '<div class="daysgrid">'+dbtns+'</div>'+
+      '<div class="stepper" style="display:none">'+
+        '<button type="button" class="minus" aria-label="weniger">−</button>'+
+        '<div class="val"><span class="n">8</span><small class="stlabel">Stunden</small></div>'+
+        '<button type="button" class="plus" aria-label="mehr">+</button>'+
+      '</div>'+
+      '<div class="cardtotal">Total <b class="ct">0 h</b></div>';
+    var inp=div.querySelector(".auftrag"); inp.value=data.auftrag||"";
+    var stepper=div.querySelector(".stepper"), nEl=div.querySelector(".n"), stl=div.querySelector(".stlabel");
+
+    function paint(){
+      div.querySelectorAll(".dbtn").forEach(function(b,i){
+        b.classList.toggle("on",hours[i]>0);
+        b.classList.toggle("editing",i===editing);
+        b.querySelector(".dh").textContent=hours[i]>0?fmtH(hours[i]):"–";
+      });
+      var t=hours.reduce(function(a,b){ return a+b; },0);
+      div.querySelector(".ct").textContent=fmtH(t)+" h";
+      if(editing>=0){ stepper.style.display="";
+        nEl.textContent=fmtH(hours[editing]); stl.textContent="Stunden am "+DW[editing]; }
+      else stepper.style.display="none";
+      paintWeekTotal(); saveDraft();
+    }
+    div.querySelector(".daysgrid").addEventListener("click",function(e){
+      var b=e.target.closest?e.target.closest(".dbtn"):null; if(!b) return;
+      var i=parseInt(b.getAttribute("data-i"),10);
+      if(hours[i]===0){ hours[i]=8; editing=i; }          // 1. Tipp: Standard-Arbeitstag (8 h) setzen
+      else if(editing===i){ editing=-1; }                  // Stepper zuklappen
+      else { editing=i; }                                  // zum Anpassen wählen
+      paint();
+    });
+    div.querySelector(".minus").addEventListener("click",function(){
+      if(editing<0) return; hours[editing]=Math.max(0,Math.round((hours[editing]-0.5)*10)/10);
+      if(hours[editing]===0) editing=-1; paint(); });
+    div.querySelector(".plus").addEventListener("click",function(){
+      if(editing<0) return; hours[editing]=Math.min(16,Math.round((hours[editing]+0.5)*10)/10); paint(); });
+    div.getData=function(){ return { auftrag:inp.value, h:hours.slice() }; };
+    inp.addEventListener("focus",function(){ AC.open(inp); });
+    inp.addEventListener("input",function(){ AC.open(inp); saveDraft(); });
+    inp.addEventListener("blur",function(){ setTimeout(AC.close,150); });
+    div.querySelector(".del").addEventListener("click",function(){
+      div.remove(); if(!$("cards").children.length) makeCard(); paintWeekTotal(); saveDraft(); });
+    $("cards").appendChild(div); paint();
+    return div;
+  }
+
+  function collectCards(){
+    var out=[];
+    $("cards").querySelectorAll(".card").forEach(function(c){ out.push(c.getData()); });
+    return out;
+  }
+  function dayTotals(){
+    var t=[0,0,0,0,0,0,0];
+    collectCards().forEach(function(c){ for(var i=0;i<7;i++) t[i]+=c.h[i]; });
+    return t;
+  }
+  function paintWeekTotal(){
+    var t=dayTotals(), sum=0;
+    t.forEach(function(v){ sum+=v; });
+    $("weekTotal").textContent=fmtH(sum)+" h";
+    renderProtokoll(t);
+  }
+
+  /* ---------- Protokoll Arbeitszeiten (GAV: Beginn/Pause/Ende pro Tag) ---------- */
+  var PROT={};                            // dayIdx -> {start,pv,pb,ende}
+  function timeToMin(s){ var m=/^(\d{1,2}):(\d{2})$/.exec(String(s||"").trim());
+    return m?(+m[1])*60+(+m[2]):null; }
+  function minToTime(min){ min=Math.max(0,Math.min(23*60+59,Math.round(min)));
+    return ("0"+Math.floor(min/60)).slice(-2)+":"+("0"+(min%60)).slice(-2); }
+  function protDefaults(hours){
+    // Standard-Tagesablauf: 07:00 Beginn, Znüni 09:00–09:30, Mittag 12:00–13:00.
+    // 8-h-Tag ergibt damit Ende 16:30. Kurze Tage: nur Znüni bzw. keine Pause.
+    var start=7*60, pause=0, p1v="",p1b="",p2v="",p2b="";
+    if(hours>5.5){ p1v="09:00"; p1b="09:30"; p2v="12:00"; p2b="13:00"; pause=90; }
+    else if(hours>2.5){ p1v="09:00"; p1b="09:30"; pause=30; }
+    return { start:minToTime(start), p1v:p1v, p1b:p1b, p2v:p2v, p2b:p2b,
+             ende:minToTime(start+hours*60+pause) };
+  }
+  function renderProtokoll(t){
+    t=t||dayTotals();
+    var box=$("protRows"), html="", any=false;
+    for(var i=0;i<7;i++){
+      if(t[i]>0){
+        any=true;
+        if(!PROT[i]||PROT[i].p1v===undefined) PROT[i]=protDefaults(t[i]);
+        var p=PROT[i], d=addDays(weekStart,i);
+        html+='<div class="protrow" data-i="'+i+'">'+
+          '<span class="pd">'+DW[i]+'<small>'+chShort(d)+'</small>'+
+            (p.p3on?'':'<button type="button" class="addp" data-i="'+i+'">+ Pause</button>')+'</span>'+
+          '<input type="time" data-f="start" value="'+p.start+'">'+
+          '<span class="pcell"><input type="time" data-f="p1v" value="'+p.p1v+'">'+
+            '<input type="time" data-f="p1b" value="'+p.p1b+'"></span>'+
+          '<span class="pcell"><input type="time" data-f="p2v" value="'+p.p2v+'">'+
+            '<input type="time" data-f="p2b" value="'+p.p2b+'"></span>'+
+          '<input type="time" data-f="ende" value="'+p.ende+'">'+
+          "</div>";
+        if(p.p3on){
+          html+='<div class="protrow extra" data-i="'+i+'">'+
+            '<span class="pd3">3. Pause<button type="button" class="rm3" data-i="'+i+'" aria-label="Pause entfernen">✕</button></span>'+
+            '<span></span>'+
+            '<input type="time" data-f="p3v" value="'+(p.p3v||"")+'">'+
+            '<input type="time" data-f="p3b" value="'+(p.p3b||"")+'">'+
+            '<span></span>'+
+            "</div>";
+        }
+      } else { delete PROT[i]; }
+    }
+    box.innerHTML=any?html:'<div class="protempty">Erscheint automatisch, sobald Tage angetippt sind.</div>';
+  }
+  document.addEventListener("input",function(e){
+    var row=e.target.closest?e.target.closest(".protrow"):null; if(!row) return;
+    var i=parseInt(row.getAttribute("data-i"),10);
+    if(!PROT[i]) PROT[i]={};
+    PROT[i][e.target.getAttribute("data-f")]=e.target.value;
+    saveDraft();
+  });
+  document.addEventListener("click",function(e){
+    var add=e.target.closest?e.target.closest(".addp"):null;
+    if(add){ var i=parseInt(add.getAttribute("data-i"),10);
+      if(PROT[i]){ PROT[i].p3on=true; renderProtokoll(); saveDraft(); } return; }
+    var rm=e.target.closest?e.target.closest(".rm3"):null;
+    if(rm){ var j=parseInt(rm.getAttribute("data-i"),10);
+      if(PROT[j]){ PROT[j].p3on=false; PROT[j].p3v=""; PROT[j].p3b=""; renderProtokoll(); saveDraft(); } }
+  });
+  function pauseMin(p){
+    var total=0;
+    [["p1v","p1b"],["p2v","p2b"],["p3v","p3b"]].forEach(function(k){
+      var v=timeToMin(p[k[0]]), b=timeToMin(p[k[1]]);
+      if(v!==null&&b!==null&&b>v) total+=b-v;
+    });
+    return total;
+  }
+  function protokollCheck(t){
+    // Plausibilität: (Ende - Beginn - Pausen) sollte den gebuchten Stunden entsprechen
+    var offDays=[];
+    for(var i=0;i<7;i++){
+      if(!(t[i]>0)) continue;
+      var p=PROT[i]||{};
+      var s=timeToMin(p.start), e=timeToMin(p.ende);
+      if(s===null||e===null) return { error:"Bitte Beginn und Ende am "+DW[i]+" eintragen." };
+      var worked=(e-s-pauseMin(p))/60;
+      if(Math.abs(worked-t[i])>0.26) offDays.push(DW[i]+" ("+fmtH(worked)+" h statt "+fmtH(t[i])+" h)");
+    }
+    return { offDays:offDays };
+  }
+
+  /* ---------- Draft ---------- */
+  /* Entwurf pro Woche. Ein leerer Stand (keine Auftragsnummer, keine Stunden) löscht den
+     Entwurf dieser Woche – ein frisch aufgebauter Schirm kann so nie einen echten Entwurf überschreiben. */
+  function draftIsEmpty(cards){
+    return !cards.some(function(c){ return (c.auftrag&&c.auftrag.trim())||c.h.some(function(v){ return v>0; }); });
+  }
+  function saveDraft(){
+    if(!weekStart) return;
+    var cards=collectCards(), empty=draftIsEmpty(cards);
+    var json=empty?null:JSON.stringify({week:weekStart,cards:cards,prot:PROT,saved:new Date().toISOString()});
+    var hatteEntwurf=!!MEM[weekStart];   // leerer Schirm löscht zentral nur, wenn hier vorher etwas stand
+    if(empty) delete MEM[weekStart]; else MEM[weekStart]=json;
+    try{
+      if(empty) localStorage.removeItem(KEY_PREFIX+uKey()+weekStart);
+      else { localStorage.setItem(KEY_PREFIX+uKey()+weekStart,json); localStorage.setItem(KEY_LAST+uKey(),weekStart); }
+    }catch(e){}
+    if(!empty||hatteEntwurf) scheduleServerSave(weekStart,json);
+  }
+  /* Zentrale Sicherung im Sheet (Reiter "Entwürfe"): der Browser-Speicher ist im
+     eingebetteten Google-Fenster nicht verlässlich. Gesendet wird gebündelt, 1.5 s nach der letzten Änderung. */
+  var SRV={timer:null,pending:{},busy:false};
+  function scheduleServerSave(week,json){
+    if(!CURRENT) return;
+    SRV.pending[week+"|"+(CURRENT.nr||"")+"|"+CURRENT.name]=json; clearTimeout(SRV.timer);
+    SRV.timer=setTimeout(flushServerSave,1500);
+  }
+  function flushServerSave(){
+    if(SRV.busy) return;
+    var keys=Object.keys(SRV.pending); if(!keys.length) return;
+    var k=keys[0], json=SRV.pending[k], parts=k.split("|"), week=parts[0]; delete SRV.pending[k];
+    SRV.busy=true; setStatus(json?"Entwurf wird gesichert …":"");
+    google.script.run
+      .withSuccessHandler(function(){ SRV.busy=false; setStatus(json?"Entwurf gesichert":""); flushServerSave(); })
+      .withFailureHandler(function(err){ SRV.busy=false; SRV.pending[k]=json; setStatus("Entwurf konnte nicht gesichert werden: "+((err&&err.message)||"Verbindung prüfen")); setTimeout(flushServerSave,8000); })
+      .saveEntwurf(parts[1],parts.slice(2).join("|"),week,json);
+  }
+  var statusT=null;
+  function setStatus(t){
+    var m=$("loading"); clearTimeout(statusT);
+    if(!t){ m.classList.remove("show"); return; }
+    m.className="msg info show"; m.textContent=t;
+    if(t==="Entwurf gesichert") statusT=setTimeout(function(){ m.classList.remove("show"); },1500);
+  }
+  /* Entwürfe vom Server holen und einspielen, falls lokal nichts (oder Älteres) vorhanden ist. */
+  function syncFromServer(){
+    var me=CURRENT; if(!me) return;
+    google.script.run.withSuccessHandler(function(map){
+      if(!CURRENT||CURRENT.name!==me.name||!map) return;
+      var thisMon=isoDate(mondayOf(new Date())), lastMon=isoDate(addDays(thisMon,-7)), restored=null;
+      [lastMon,thisMon].forEach(function(w){
+        var srv=map[w]; if(!srv||!srv.json) return;
+        var d=null; try{ d=JSON.parse(srv.json); }catch(e){ return; }
+        if(!d||!d.cards||!d.cards.length||draftIsEmpty(d.cards)) return;
+        var loc=loadDraft(w);
+        if(loc&&loc.saved&&d.saved&&loc.saved>=d.saved) return;   // lokal ist gleich neu oder neuer
+        MEM[w]=srv.json;
+        try{ localStorage.setItem(KEY_PREFIX+uKey()+w,srv.json); }catch(e){}
+        if(w===weekStart&&draftIsEmpty(collectCards())){
+          $("cards").innerHTML=""; PROT=d.prot||{}; d.cards.forEach(function(c){ makeCard(c); }); paintWeekTotal(); restored=w;
+        } else if(!restored&&draftIsEmpty(collectCards())&&!loadDraft(weekStart)){
+          weekStart=w; renderWeeks(); $("cards").innerHTML=""; PROT=d.prot||{}; d.cards.forEach(function(c){ makeCard(c); }); paintWeekTotal(); restored=w;
+        }
+      });
+      if(restored){ setStatus("Angefangene Woche wiederhergestellt"); statusT=setTimeout(function(){ $("loading").classList.remove("show"); },3000); }
+    }).withFailureHandler(function(){}).loadEntwuerfe(me.name);
+  }
+  function loadDraft(iso){
+    iso=iso||weekStart;
+    var raw=MEM[iso]||null;
+    if(!raw){ try{ raw=localStorage.getItem(KEY_PREFIX+uKey()+iso); }catch(e){ raw=null; } }
+    try{ var d=JSON.parse(raw); return (d&&d.cards&&d.cards.length)?d:null; }catch(e){ return null; }
+  }
+  function clearDraft(iso){ clearTimeout(SRV.timer); if(CURRENT) delete SRV.pending[iso+"|"+(CURRENT.nr||"")+"|"+CURRENT.name]; delete MEM[iso]; try{ localStorage.removeItem(KEY_PREFIX+uKey()+iso); if(localStorage.getItem(KEY_LAST+uKey())===iso) localStorage.removeItem(KEY_LAST+uKey()); }catch(e){} }
+  /* Woche mit offenem Entwurf (nur diese oder letzte Woche), sonst diese Woche. */
+  function weekWithDraft(){
+    var thisMon=isoDate(mondayOf(new Date())), lastMon=isoDate(addDays(thisMon,-7)), last=null;
+    try{ last=localStorage.getItem(KEY_LAST+uKey()); }catch(e){}
+    if(last&&(last===thisMon||last===lastMon)&&loadDraft(last)) return last;
+    if(loadDraft(thisMon)) return thisMon;
+    if(loadDraft(lastMon)) return lastMon;
+    return thisMon;
+  }
+  /* Alten Ein-Wochen-Entwurf (Schlüssel zeit-draft-woche) einmalig in das neue Schema übernehmen. */
+  function migrateDraft(){
+    try{
+      // Alte Entwürfe ohne Personenbezug werden verworfen – die zentrale Sicherung im Sheet bleibt.
+      localStorage.removeItem(KEY_DRAFT);
+      for(var i=localStorage.length-1;i>=0;i--){ var k=localStorage.key(i);
+        if(k&&/^zeit-draft-/.test(k)) localStorage.removeItem(k); }   // alle lokalen Kopien vor 5.2 (ohne sicheren Personenbezug)
+    }catch(e){}
+  }
+  function storageCheck(){
+    try{ localStorage.setItem("zeit-test","1"); localStorage.removeItem("zeit-test"); STORAGE_OK=true; }
+    catch(e){ STORAGE_OK=false; }
+  }
+
+  /* ---------- Autocomplete ---------- */
+  var AC=(function(){
+    var box=null, input=null, items=[], active=-1;
+    function ensure(){
+      if(box) return;
+      box=document.createElement("div"); box.className="acbox";
+      document.body.appendChild(box);
+      box.addEventListener("mousedown",function(e){
+        var el=e.target.closest?e.target.closest(".acitem"):null; if(!el) return;
+        e.preventDefault(); active=parseInt(el.getAttribute("data-i"),10); choose();
+      });
+    }
+    function normNr(s){ return String(s||"").toLowerCase().replace(/[\s.\-'’]/g,""); }
+    function candidates(q){
+      var raw=(q||"").trim().toLowerCase(), qn=normNr(q); var out=[];
+      // Nummern-Suche ignoriert Leerzeichen/Bindestriche/Punkte: "2023 501 784",
+      // "2023-501-784" und "2023501784" finden alle denselben Auftrag.
+      PROJECTS.forEach(function(p){ var nr=String(p.nr), lb=String(p.label||"");
+        if(!raw||normNr(nr).indexOf(qn)>=0||lb.toLowerCase().indexOf(raw)>=0) out.push({nr:nr,label:lb}); });
+      ABSENCES.forEach(function(a){ if(!raw||a.toLowerCase().indexOf(raw)>=0) out.push({nr:a,label:"Absenz"}); });
+      return out.slice(0,50);
+    }
+    function render(){
+      if(!items.length){ box.innerHTML='<div class="acempty">Keine Treffer.</div>'; return; }
+      var h=""; items.forEach(function(it,i){
+        h+='<div class="acitem'+(i===active?" active":"")+'" data-i="'+i+'"><span class="acnr">'+esc(it.nr)+
+           "</span>"+(it.label?'<span class="aclabel">'+esc(it.label)+"</span>":"")+"</div>"; });
+      box.innerHTML=h;
+    }
+    function position(){ if(!input) return; var r=input.getBoundingClientRect();
+      box.style.left=(window.pageXOffset+r.left)+"px"; box.style.top=(window.pageYOffset+r.bottom+2)+"px";
+      box.style.minWidth=r.width+"px"; }
+    function open(inp){ ensure(); input=inp; active=-1; items=candidates(inp.value);
+      render(); position(); box.classList.add("open"); }
+    function close(){ if(box) box.classList.remove("open"); input=null; active=-1; }
+    function choose(){ if(active<0||active>=items.length){ close(); return; }
+      var inp=input, v=items[active].nr; close(); if(inp) inp.value=v; saveDraft(); }
+    function reposition(){ if(box&&box.classList.contains("open")) position(); }
+    return { open:open, close:close, choose:choose, reposition:reposition };
+  })();
+
+  /* ---------- Unterschrift ---------- */
+  var SIGN=(function(){
+    var canvas=null, ctx=null, drawing=false, hasInk=false, pending=null;
+    function setup(){
+      canvas=$("signCanvas"); ctx=canvas.getContext("2d");
+      var r=canvas.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+      canvas.width=Math.round(r.width*dpr); canvas.height=Math.round(r.height*dpr);
+      ctx.scale(dpr,dpr);
+      ctx.fillStyle="#fff"; ctx.fillRect(0,0,r.width,r.height);
+      ctx.strokeStyle="#1C2430"; ctx.lineWidth=2.5; ctx.lineCap="round"; ctx.lineJoin="round";
+      hasInk=false; $("signOk").disabled=true;
+      function pos(e){ var rr=canvas.getBoundingClientRect();
+        return { x:e.clientX-rr.left, y:e.clientY-rr.top }; }
+      canvas.onpointerdown=function(e){ e.preventDefault(); drawing=true;
+        canvas.setPointerCapture&&canvas.setPointerCapture(e.pointerId);
+        var p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+0.1,p.y+0.1); ctx.stroke(); ink(); };
+      canvas.onpointermove=function(e){ if(!drawing) return; e.preventDefault();
+        var p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); ink(); };
+      canvas.onpointerup=canvas.onpointercancel=function(){ drawing=false; ctx.beginPath(); };
+    }
+    function ink(){ if(!hasInk){ hasInk=true; $("signOk").disabled=false; } }
+    function clearPad(){ if(!ctx) return; var r=canvas.getBoundingClientRect();
+      ctx.fillStyle="#fff"; ctx.fillRect(0,0,r.width,r.height);
+      hasInk=false; $("signOk").disabled=true; }
+    function open(cb){ pending=cb; $("signOverlay").classList.add("open"); setup(); }
+    function close(){ $("signOverlay").classList.remove("open"); pending=null; }
+    function confirm(){ if(!hasInk||!pending) return;
+      var data=canvas.toDataURL("image/png"); var cb=pending; close(); cb(data); }
+    return { open:open, close:close, clearPad:clearPad, confirm:confirm };
+  })();
+
+  /* ---------- Senden ---------- */
+  function submit(){
+    var me=savedName(); if(!me){ showName(); return; }
+    var entries=[];
+    collectCards().forEach(function(c){
+      if(!c.auftrag) return;
+      for(var i=0;i<7;i++){
+        if(c.h[i]>0) entries.push({ datum:chDate(addDays(weekStart,i)), auftrag:c.auftrag, stunden:c.h[i] });
+      }
+    });
+    if(!entries.length){ showErr("Bitte einen Auftrag wählen und Tage antippen."); return; }
+    var t=dayTotals(), chk=protokollCheck(t);
+    if(chk.error){ showErr(chk.error); return; }
+    if(chk.offDays.length &&
+       !confirm("Achtung: Beginn/Pause/Ende passen nicht zu den gebuchten Stunden:\n\n"+
+                chk.offDays.join("\n")+"\n\nTrotzdem senden?")) return;
+    SIGN.open(function(unterschrift){ send_(me,entries,unterschrift); });
+  }
+  function protokollPayload(){
+    var out=[], t=dayTotals();
+    for(var i=0;i<7;i++){
+      if(!(t[i]>0)||!PROT[i]) continue;
+      var p=PROT[i];
+      out.push({ tag:DW[i], datum:chDate(addDays(weekStart,i)),
+                 start:p.start||"",
+                 pause1:(p.p1v&&p.p1b)?(p.p1v+" – "+p.p1b):"",
+                 pause2:(p.p2v&&p.p2b)?(p.p2v+" – "+p.p2b):"",
+                 pause3:(p.p3on&&p.p3v&&p.p3b)?(p.p3v+" – "+p.p3b):"",
+                 ende:p.ende||"", stunden:t[i] });
+    }
+    return out;
+  }
+  function send_(me,entries,unterschrift){
+    var btn=$("send"); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Wird gesendet …';
+    google.script.run
+      .withSuccessHandler(function(res){
+        btn.disabled=false; btn.textContent="Woche abschicken";
+        clearDraft(weekStart);
+        SRV.pending[weekStart+"|"+(me.nr||"")+"|"+me.name]=null; flushServerSave();   // Entwurf auch zentral löschen (falls eine Sicherung noch unterwegs war)
+        $("mainScreen").style.display="none"; $("sendbar").style.display="none";
+        var a=new Date(weekStart+"T12:00:00");
+        $("doneText").textContent=res.count+" Buchung"+(res.count>1?"en":"")+" für die Woche ab "+chDate(a)+" gespeichert.";
+        var hasPdf=res.pdfUrl&&res.pdfUrl.indexOf("http")===0;
+        $("pdfWrap").style.display=hasPdf?"":"none";
+        if(hasPdf) $("pdfBtn").href=res.pdfUrl;
+        if(res.mailedTo){ var mt=$("mailText");
+          mt.textContent="Das PDF wurde zusätzlich an "+res.mailedTo+" gesendet."; mt.style.display=""; }
+        else $("mailText").style.display="none";
+        $("doneScreen").style.display="";
+      })
+      .withFailureHandler(function(err){
+        btn.disabled=false; btn.textContent="Woche abschicken";
+        showErr("Senden fehlgeschlagen: "+(err&&err.message?err.message:err)+" – nochmals versuchen.");
+      })
+      .submitRapport({ ma:me.name, maNr:me.nr||"", von:weekStart, rapnr:"", entries:entries,
+                       pin:me.pinValue||"", protokoll:protokollPayload(), unterschrift:unterschrift||"" });
+  }
+
+  /* ---------- Screens ---------- */
+  function showName(){
+    $("nameScreen").style.display=""; $("mainScreen").style.display="none"; $("pinScreen").style.display="none";
+    $("antragScreen").style.display="none"; $("freigabeScreen").style.display="none"; $("tabs").style.display="none";
+    $("wSaldo").style.display="none"; $("aSaldo").style.display="none";
+    $("sendbar").style.display="none"; $("doneScreen").style.display="none"; $("who").style.display="none";
+    $("nameSearch").value=""; renderNameList(""); $("nameSearch").focus();
+  }
+  function showMain(){
+    var me=savedName(); if(!me){ showName(); return; }
+    $("whoName").textContent=me.name; $("who").style.display="";
+    $("nameScreen").style.display="none"; $("doneScreen").style.display="none"; $("pinScreen").style.display="none";
+    $("tabs").style.display=""; $("tabFreigabe").style.display=me.gl?"":"none";
+    showTab("woche");
+    if(!weekStart) weekStart=weekWithDraft();   // Woche mit offenem Entwurf zuerst
+    renderWeeks();
+    if(!$("cards").children.length){
+      var dr=loadDraft(weekStart);
+      if(dr){ PROT=dr.prot||{}; dr.cards.forEach(function(c){ makeCard(c); }); }
+      else { makeCard(); prefillBewilligt(); }
+    }
+    paintWeekTotal();
+    syncFromServer();
+    loadSaldo();
+    if(me.gl) loadFreigabe();
+  }
+
+  /* ---------- Reiter ---------- */
+  function showTab(t){
+    $("tabs").querySelectorAll("button").forEach(function(b){ b.classList.toggle("sel",b.getAttribute("data-tab")===t); });
+    $("mainScreen").style.display=t==="woche"?"":"none"; $("sendbar").style.display=t==="woche"?"":"none";
+    $("antragScreen").style.display=t==="antrag"?"":"none";
+    $("freigabeScreen").style.display=t==="freigabe"?"":"none";
+    $("doneScreen").style.display="none";
+    if(t==="antrag"){ initAntrag(); loadMeine(); }
+    if(t==="freigabe") loadFreigabe();
+  }
+
+  /* ---------- Bewilligte Ferien/Absenzen in leere Woche übernehmen ---------- */
+  function prefillBewilligt(){
+    var me=CURRENT, wk=weekStart; if(!me||!wk) return;
+    google.script.run.withSuccessHandler(function(list){
+      if(!list||!list.length||CURRENT!==me||weekStart!==wk||!draftIsEmpty(collectCards())) return;
+      $("cards").innerHTML="";
+      list.forEach(function(c){ makeCard({auftrag:c.auftrag,h:c.h}); });
+      makeCard(); paintWeekTotal();
+      setStatus("Bewilligte Ferien/Absenzen eingetragen"); statusT=setTimeout(function(){ $("loading").classList.remove("show"); },3000);
+    }).withFailureHandler(function(){}).getBewilligteWoche(me.name,me.pinValue||"",wk);
+  }
+
+  /* ---------- Ferienantrag / Absenzmeldung ---------- */
+  var ANT={typ:"Ferien",abzug:"Ferien",init:false};
+  var ABS_FUER_ANTRAG=/kompensation|milit|zivil|weiterbild|schule|heirat|geburt|todesfall|amt|unbezahlt|diverse|bezahlte/i;
+  function initAntrag(){
+    if(!ANT.init){
+      ANT.init=true;
+      var opts=ABSENCES.filter(function(a){ return ABS_FUER_ANTRAG.test(a)&&!/abzug/i.test(a); });
+      $("aArt").innerHTML='<option value="">Bitte wählen …</option>'+opts.map(function(a){ return '<option>'+esc(a)+'</option>'; }).join("");
+    }
+    paintAntrag();
+  }
+  function isoOf(v){ return /^\d{4}-\d{2}-\d{2}$/.test(v||"")?v:""; }
+  function tageWert(){ var v=parseFloat(String($("aTageIn").value||"").replace(",",".")); return v>0&&Math.round(v*2)===v*2?v:0; }
+  function paintAntrag(){
+    var fer=ANT.typ==="Ferien", von=isoOf($("aVon").value), bis=isoOf($("aBis").value)||von;
+    $("aTyp").querySelectorAll("button").forEach(function(b){ b.classList.toggle("sel",b.getAttribute("data-typ")===ANT.typ); });
+    $("aArtWrap").style.display=fer?"none":""; $("aBelege").style.display=fer?"none":"";
+    var halb=von&&bis===von&&tageWert()===0.5;
+    $("aAbzug").style.display=(fer&&halb)?"flex":"none";
+    $("aAbzug").querySelectorAll("button").forEach(function(b){ b.classList.toggle("sel",b.getAttribute("data-abzug")===ANT.abzug); });
+  }
+  function sendAntrag(){
+    var me=CURRENT; if(!me) return;
+    var von=isoOf($("aVon").value), bis=isoOf($("aBis").value)||von;
+    if(!von){ showErr("Bitte das Von-Datum wählen."); return; }
+    if(ANT.typ==="Absenz"&&!$("aArt").value){ showErr("Bitte den Abwesenheitsgrund wählen."); return; }
+    var tage=tageWert(); if(!tage){ showErr("Bitte die Anzahl Arbeitstage eintragen (halbe Tage mit .5)."); return; }
+    var btn=$("aSend"); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Wird gesendet …';
+    google.script.run.withSuccessHandler(function(res){
+      btn.disabled=false; btn.textContent="Antrag senden";
+      $("aVon").value=""; $("aBis").value=""; $("aTageIn").value=""; $("aBem").value="";
+      $("aAufgebot").checked=false; $("aSold").checked=false; paintAntrag();
+      if(res.mailErr) showErr("Antrag gespeichert, aber die Mail an die GL ist fehlgeschlagen: "+res.mailErr);
+      else { setStatus("Antrag gesendet ("+fmtH(res.tage)+" Tage)"+(res.glMail?" – die GL wurde per Mail benachrichtigt.":" – keine GL-Mail hinterlegt.")); statusT=setTimeout(function(){ $("loading").classList.remove("show"); },5000); }
+      loadMeine(); if(me.gl) loadFreigabe();
+    }).withFailureHandler(function(err){
+      btn.disabled=false; btn.textContent="Antrag senden";
+      showErr("Senden fehlgeschlagen: "+(err&&err.message?err.message:err));
+    }).submitAntrag({ ma:me.name, pin:me.pinValue||"", typ:ANT.typ, art:$("aArt").value, von:von, bis:bis,
+                      tage:tage, halb:tage===0.5&&bis===von, abzug:ANT.abzug, bem:$("aBem").value,
+                      aufgebot:$("aAufgebot").checked, sold:$("aSold").checked });
+  }
+  function chIso(iso){ var p=String(iso||"").split("-"); return p.length===3?p[2]+"."+p[1]+"."+p[0]:iso; }
+  function h2(v){ return v==null?"–":(Math.round(v*100)/100).toFixed(2).replace(/\.?0+$/,"").replace(".",","); }
+  function t1(v){ return v==null?"–":(Math.round(v*10)/10).toFixed(1).replace(/\.0$/,"").replace(".",","); }
+  function uTotal(s){ return s.ueberstd==null&&s.ueberzeit==null?null:(s.ueberstd||0)+(s.ueberzeit||0); }  // Überstunden + Überzeit
+  function saldoHtml(s,tage,typ){       // Ferien in Stunden (Messerli), Tage ≈ Stunden / 8
+    if(!s) return '<div class="saldo">Kein Saldo hinterlegt (Reiter „Salden“).</div>';
+    var h='<div class="saldo"><b>Saldo Stand '+esc(s.stand||"?")+'</b><br>Ferien: <b>'+h2(s.ferien)+' h</b>'+(s.ferien!=null?' (≈ '+t1(s.ferien/8)+' Tage)':'')+
+      ' · Überstunden: <b>'+h2(uTotal(s))+' h</b>';
+    if(s.bewilligtTage) h+='<br>Bereits bewilligt, noch nicht gebucht: '+h2(s.bewilligtTage)+' Tage';
+    if(typ==="Ferien"&&tage&&s.ferien!=null){
+      var rest=s.ferien-(s.bewilligtTage+tage)*8;
+      h+='<br>Nach diesem Antrag: <span class="'+(rest<0?'neg':'')+'">≈ '+h2(rest)+' h ('+t1(rest/8)+' Tage)</span>';
+    }
+    return h+'</div>';
+  }
+  function antragHtml(a,mode){
+    var zeit=a.von===a.bis?chIso(a.von)+(a.halb?" (½ Tag, "+(a.abzug||"Ferienkonto")+")":""):chIso(a.von)+" – "+chIso(a.bis);
+    var titel=mode==="gl"?esc(a.ma):(a.typ==="Ferien"?"Ferien":esc(a.art));
+    var h='<div class="aitem" data-id="'+esc(a.id)+'"><div class="ah"><b>'+titel+'</b><span class="st '+esc(a.status)+'">'+esc(a.status)+'</span></div>'+
+      '<div>'+(mode==="gl"?(a.typ==="Ferien"?"Ferien":esc(a.art))+" · ":"")+zeit+" · <b>"+fmtH(a.tage)+"</b> Tag"+(a.tage===1?"":"e")+'</div>';
+    if(a.bem) h+='<div class="am">Bemerkung: '+esc(a.bem)+'</div>';
+    if(a.typ==="Absenz") h+='<div class="am">Aufgebot: '+(a.aufgebot?"ja":"nein")+' · Soldmeldekarte: '+(a.sold?"ja":"nein")+'</div>';
+    if(a.status!=="offen"&&a.entVon) h+='<div class="am">'+esc(a.status)+' von '+esc(a.entVon)+(a.entAm?' am '+esc(a.entAm):'')+(a.kommentar?' – '+esc(a.kommentar):'')+'</div>';
+    else h+='<div class="am">Eingang '+esc(a.eingang)+'</div>';
+    if(mode==="gl"&&a.status==="offen") h+=saldoHtml(a.saldo,a.tage,a.typ);
+    if(mode==="gl"&&a.ueberschneidung&&a.ueberschneidung.length) h+='<div class="ovl">Gleichzeitig abwesend: '+a.ueberschneidung.map(esc).join(", ")+'</div>';
+    if(mode==="gl"&&a.status==="offen") h+='<textarea placeholder="Kommentar (bei Ablehnung Pflicht)"></textarea>'+
+      '<div class="abtns"><button type="button" class="b-no" data-act="abgelehnt">Ablehnen</button><button type="button" class="b-ok" data-act="bewilligt">Bewilligen</button></div>';
+    if(mode==="me"&&a.status==="offen") h+='<div class="abtns"><button type="button" class="b-soft" data-act="zurueck">Zurückziehen</button></div>';
+    return h+'</div>';
+  }
+  function loadSaldo(){                // eigener Saldo: oben in "Woche" und im Reiter Ferien/Absenz
+    var me=CURRENT; if(!me) return;
+    google.script.run.withSuccessHandler(function(s){
+      if(CURRENT!==me) return;
+      var html=s?'<b>Dein Saldo</b> <span class="stand">· letzter Stand '+esc(s.stand||"unbekannt")+'</span>'+
+        '<div class="zeile"><span>Ferien <b>'+h2(s.ferien)+' h</b>'+(s.ferien!=null?' (≈ '+t1(s.ferien/8)+' Tage)':'')+'</span>'+
+        '<span>Überstunden <b>'+h2(uTotal(s))+' h</b></span></div>'+
+        (s.bewilligtTage?'<div>Bewilligte Ferien, noch nicht gebucht: '+t1(s.bewilligtTage)+' Tage</div>':'')+
+        '<div class="dwrap"><button type="button" class="detail" data-act="open">Stimmt etwas nicht? Details anfordern</button></div>':"";
+      ["wSaldo","aSaldo"].forEach(function(id){ $(id).innerHTML=html; $(id).style.display=html?"":"none"; });
+    }).withFailureHandler(function(){}).getMeinSaldo(me.name,me.pinValue||"");
+  }
+  function saldoClick(e){
+    var b=e.target.closest?e.target.closest("button[data-act]"):null; if(!b) return;
+    var wrap=b.closest(".dwrap"), act=b.getAttribute("data-act");
+    if(act==="open"){ wrap.innerHTML='<textarea maxlength="500" placeholder="Was stimmt nicht? (optional, z. B. Ferien vom 5.10. fehlen)"></textarea>'+
+      '<div class="row"><button type="button" class="b-soft" data-act="cancel">Abbrechen</button><button type="button" class="b-ok" data-act="send">Anfrage senden</button></div>'; wrap.querySelector("textarea").focus(); return; }
+    if(act==="cancel"){ loadSaldo(); return; }
+    if(act==="send"){
+      var txt=wrap.querySelector("textarea").value; b.disabled=true; b.textContent="Wird gesendet …";
+      google.script.run.withSuccessHandler(function(){
+        ["wSaldo","aSaldo"].forEach(function(id){ var w=$(id).querySelector(".dwrap"); if(w) w.innerHTML='<div style="margin-top:8px;color:var(--ok);font-weight:600">✓ Anfrage gesendet – das Büro meldet sich bei dir.</div>'; });
+      }).withFailureHandler(function(err){ b.disabled=false; b.textContent="Anfrage senden"; showErr(err&&err.message?err.message:String(err)); })
+        .anfrageSaldoDetails(CURRENT.name,CURRENT.pinValue||"",txt);
+    }
+  }
+  function loadMeine(){
+    var me=CURRENT; if(!me) return;
+
+    google.script.run.withSuccessHandler(function(list){
+      $("aMeine").innerHTML=(list&&list.length)?list.map(function(a){ return antragHtml(a,"me"); }).join(""):'<div class="acempty">Noch keine Anträge.</div>';
+    }).withFailureHandler(function(err){ $("aMeine").innerHTML='<div class="acempty">'+esc(err&&err.message?err.message:err)+'</div>'; })
+      .getMeineAntraege(me.name,me.pinValue||"");
+  }
+  function loadFreigabe(){
+    var me=CURRENT; if(!me||!me.gl) return;
+    google.script.run.withSuccessHandler(function(res){
+      var o=res.offen||[], e=res.erledigt||[];
+      $("frOffen").innerHTML=o.length?o.map(function(a){ return antragHtml(a,"gl"); }).join(""):'<div class="acempty">Keine offenen Anträge.</div>';
+      $("frErledigt").innerHTML=e.length?e.map(function(a){ return antragHtml(a,"gl"); }).join(""):'<div class="acempty">–</div>';
+      $("frCnt").textContent=o.length; $("frCnt").style.display=o.length?"":"none";
+    }).withFailureHandler(function(err){ $("frOffen").innerHTML='<div class="acempty">'+esc(err&&err.message?err.message:err)+'</div>'; })
+      .getFreigabeListe(me.name,me.pinValue||"");
+  }
+
+  /* ---------- Events ---------- */
+  $("nameSearch").addEventListener("input",function(){ renderNameList(this.value); });
+  $("nameList").addEventListener("click",function(e){
+    var b=e.target.closest?e.target.closest(".namebtn"):null; if(!b) return;
+    pickName(NAMES[parseInt(b.getAttribute("data-i"),10)]);
+  });
+  /* ---------- Problem mit der App melden ---------- */
+  function welcherSchirm(){
+    var ids={nameScreen:"Namenswahl",pinScreen:"PIN",mainScreen:"Woche",antragScreen:"Ferien / Absenz",freigabeScreen:"Freigabe",doneScreen:"Abgeschickt"};
+    for(var k in ids){ var el=$(k); if(el&&el.style.display!=="none") return ids[k]; }
+    return "?";
+  }
+  function probRender(){
+    $("probFoot").innerHTML='<button type="button" id="probOpen">⚠ Problem mit der App melden</button>';
+  }
+  $("probFoot").addEventListener("click",function(e){
+    var b=e.target.closest?e.target.closest("button"):null; if(!b) return;
+    if(b.id==="probOpen"){
+      $("probFoot").innerHTML='<div class="probbox"><p>Was funktioniert nicht? Bitte kurz beschreiben, z. B. „Woche lässt sich nicht abschicken“.'+
+        (CURRENT?'':' Du bist nicht angemeldet – bitte deinen Namen dazuschreiben.')+'</p>'+
+        '<textarea id="probText" maxlength="1000"></textarea>'+
+        '<div class="row"><button type="button" class="b-soft" id="probCancel">Abbrechen</button><button type="button" class="b-ok" id="probSend">Senden</button></div></div>';
+      $("probText").focus(); return;
+    }
+    if(b.id==="probCancel"){ probRender(); return; }
+    if(b.id==="probSend"){
+      var txt=$("probText").value.trim(); if(txt.length<5){ showErr("Bitte kurz beschreiben, was nicht funktioniert."); return; }
+      var info={ schirm:welcherSchirm(), woche:weekStart||"", version:"5", geraet:navigator.userAgent, breite:window.innerWidth+"x"+window.innerHeight,
+                 fehler:($("err").textContent||"").slice(0,300), zeit:new Date().toLocaleString("de-CH") };
+      b.disabled=true; b.textContent="Wird gesendet …";
+      google.script.run.withSuccessHandler(function(){
+        $("probFoot").innerHTML='<div class="probok">✓ Danke! Die Meldung ist angekommen, wir schauen es uns an.</div>';
+        setTimeout(probRender,8000);
+      }).withFailureHandler(function(err){ b.disabled=false; b.textContent="Senden"; showErr(err&&err.message?err.message:String(err)); })
+        .meldeProblem(CURRENT?CURRENT.name:"",CURRENT?(CURRENT.pinValue||""):"",txt,info);
+    }
+  });
+
+  function resetPerson(){                // beim Personenwechsel nichts vom Vorgänger stehen lassen
+    flushServerSave();
+    $("cards").innerHTML=""; PROT={}; weekStart=null; MEM={};
+    $("aMeine").innerHTML=""; $("frOffen").innerHTML=""; $("frErledigt").innerHTML="";
+    $("wSaldo").innerHTML=""; $("aSaldo").innerHTML="";
+    CURRENT=null;
+  }
+  $("changeName").addEventListener("click",function(){ resetPerson(); showName(); });
+  $("weeks").addEventListener("click",function(e){
+    var b=e.target.closest?e.target.closest(".week"):null; if(!b) return;
+    weekStart=b.getAttribute("data-iso"); renderWeeks();
+    $("cards").innerHTML=""; PROT={};
+    var dr=loadDraft(weekStart);
+    if(dr){ PROT=dr.prot||{}; dr.cards.forEach(function(c){ makeCard(c); }); }
+    else { makeCard(); prefillBewilligt(); }
+    paintWeekTotal();
+  });
+  $("addCard").addEventListener("click",function(){ makeCard(); });
+  $("tabs").addEventListener("click",function(e){ var b=e.target.closest?e.target.closest("button"):null; if(b) showTab(b.getAttribute("data-tab")); });
+  $("aTyp").addEventListener("click",function(e){ var b=e.target.closest?e.target.closest("button"):null; if(!b) return; ANT.typ=b.getAttribute("data-typ"); paintAntrag(); });
+  $("aAbzug").addEventListener("click",function(e){ var b=e.target.closest?e.target.closest("button"):null; if(!b) return; ANT.abzug=b.getAttribute("data-abzug"); paintAntrag(); });
+  ["aVon","aBis","aTageIn"].forEach(function(id){ $(id).addEventListener(id==="aTageIn"?"input":"change",function(){
+    if(id==="aVon"&&$("aVon").value&&(!$("aBis").value||$("aBis").value<$("aVon").value)) $("aBis").value=$("aVon").value;
+    paintAntrag(); }); });
+  $("aSend").addEventListener("click",sendAntrag);
+  $("wSaldo").addEventListener("click",saldoClick); $("aSaldo").addEventListener("click",saldoClick);
+  $("aMeine").addEventListener("click",function(e){
+    var b=e.target.closest?e.target.closest("button[data-act=zurueck]"):null; if(!b) return;
+    var id=b.closest(".aitem").getAttribute("data-id"); b.disabled=true;
+    google.script.run.withSuccessHandler(function(){ loadMeine(); if(CURRENT&&CURRENT.gl) loadFreigabe(); })
+      .withFailureHandler(function(err){ b.disabled=false; showErr(err&&err.message?err.message:String(err)); })
+      .zurueckziehenAntrag(CURRENT.name,CURRENT.pinValue||"",id);
+  });
+  $("frOffen").addEventListener("click",function(e){
+    var b=e.target.closest?e.target.closest("button[data-act]"):null; if(!b) return;
+    var item=b.closest(".aitem"), id=item.getAttribute("data-id"), act=b.getAttribute("data-act");
+    var kom=(item.querySelector("textarea")||{}).value||"";
+    if(act==="abgelehnt"&&!kom.trim()){ showErr("Bitte bei einer Ablehnung kurz begründen."); return; }
+    item.querySelectorAll("button").forEach(function(x){ x.disabled=true; });
+    google.script.run.withSuccessHandler(function(){ loadFreigabe(); })
+      .withFailureHandler(function(err){ item.querySelectorAll("button").forEach(function(x){ x.disabled=false; }); showErr(err&&err.message?err.message:String(err)); loadFreigabe(); })
+      .entscheidAntrag(CURRENT.name,CURRENT.pinValue||"",id,act,kom);
+  });
+  $("pinBack").addEventListener("click",function(){ PENDING=null; showName(); });
+  $("pinOk").addEventListener("click",submitPin);
+  $("pinInput").addEventListener("keydown",function(e){ if(e.key==="Enter") submitPin(); });
+  $("send").addEventListener("click",submit);
+  $("signCancel").addEventListener("click",SIGN.close);
+  $("signClear").addEventListener("click",SIGN.clearPad);
+  $("signOk").addEventListener("click",SIGN.confirm);
+  $("again").addEventListener("click",function(){
+    // zurück zum Startschirm (Namenswahl) – wichtig bei geteilten Geräten
+    resetPerson(); showName();
+  });
+  window.addEventListener("scroll",AC.reposition,true); window.addEventListener("resize",AC.reposition);
+
+  /* ---------- Boot ---------- */
+  storageCheck(); migrateDraft();
+  google.script.run.withSuccessHandler(function(data){
+    PROJECTS=data.projects||[]; NAMES=data.names||[];
+    if(data.absenzen&&data.absenzen.length) ABSENCES=data.absenzen;
+    $("loading").classList.remove("show");
+    showName();                          // Startschirm ist immer die Namenswahl
+  }).withFailureHandler(function(err){
+    $("loading").className="msg err show";
+    $("loading").textContent="Konnte nicht laden: "+(err&&err.message?err.message:err);
+  }).getStammdaten();
+</script>
+</body>
+</html>
