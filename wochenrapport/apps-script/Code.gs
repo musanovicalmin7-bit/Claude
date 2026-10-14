@@ -119,7 +119,7 @@ function ensureSheets_() {
   var mitHeader = ['Mitarbeiter Nr. (exakt wie Messerli)', 'Name', 'E-Mail (optional, für PDF-Zustellung)',
                    'Kostenart Arbeit (je nach Funktion: Service/Installateur/Monteur/Lehrling …)',
                    'PIN (optional, z. B. 4-stellig – schützt vor Erfassung unter fremdem Namen)',
-                   'Rolle (GL = darf Anträge bewilligen, braucht PIN)'];
+                   'Rolle (GL = darf Anträge bewilligen, braucht PIN; Salden = erhält Detail-Anfragen zu Salden; mehrere mit Komma)'];
   var mit = ss.getSheetByName(SHEET_MITARBEITER);
   if (!mit) mit = ss.insertSheet(SHEET_MITARBEITER);
   mit.getRange(1, 1, 1, mitHeader.length).setValues([mitHeader]).setFontWeight('bold');
@@ -198,7 +198,7 @@ function checkPin(name, pin) {
   var rec = readMitarbeiter_()[String(name || '').trim().toLowerCase()] || {};
   var ok = !rec.pin || rec.pin === String(pin || '').trim();
   if (!ok) cache.put(key, String(fails + 1), 15 * 60);
-  return { ok: ok, gl: ok && !!rec.pin && /^gl$/i.test(rec.rolle || '') };
+  return { ok: ok, gl: ok && !!rec.pin && /(^|[\s,;])gl($|[\s,;])/i.test(rec.rolle || '') };
 }
 function requirePin_(name, pin) {
   var r = checkPin(name, pin);
@@ -675,7 +675,7 @@ function arbeitstage_(vonIso, bisIso) {
 function glEmpfaenger_() {
   var map = readMitarbeiter_(), out = [];
   Object.keys(map).forEach(function (k) { var r = map[k];
-    if (/^gl$/i.test(r.rolle || '') && /@/.test(r.email || '')) out.push(r.email); });
+    if (/(^|[\s,;])gl($|[\s,;])/i.test(r.rolle || '') && /@/.test(r.email || '')) out.push(r.email); });
   return out;
 }
 function appUrl_() { try { return ScriptApp.getService().getUrl() || ''; } catch (e) { return ''; } }
@@ -748,6 +748,34 @@ function getMeinSaldo(name, pin) {
   var rec = readMitarbeiter_()[String(name || '').trim().toLowerCase()] || {};
   if (!rec.pin) return null;
   return saldoFuer_(saldenMap_(), rec.name || name, antragRows_().map(antragObj_), '');
+}
+
+/** Mitarbeiter meldet, dass sein Saldo nicht stimmt -> Mail an Rolle "Salden" (sonst RAPPORT_EMPFAENGER). */
+function anfrageSaldoDetails(name, pin, text) {
+  requirePin_(name, pin);
+  var map = readMitarbeiter_(), rec = map[String(name || '').trim().toLowerCase()] || {};
+  if (!rec.pin) throw new Error('Nur mit PIN möglich.');
+  var cache = CacheService.getScriptCache(), key = 'saldoanfrage_' + String(rec.nr || rec.name);
+  if (cache.get(key)) throw new Error('Deine Anfrage ist bereits unterwegs. Bitte etwas warten.');
+  var an = [];
+  Object.keys(map).forEach(function (k) { var r = map[k];
+    if (/(^|[\s,;])salden($|[\s,;])/i.test(r.rolle || '') && /@/.test(r.email || '')) an.push(r.email); });
+  if (!an.length) an = [RAPPORT_EMPFAENGER];
+  var s = saldoFuer_(saldenMap_(), rec.name, antragRows_().map(antragObj_), '') || {};
+  function f(v) { return v == null ? '–' : String(v).replace('.', ','); }
+  MailApp.sendEmail({
+    to: an.join(','),
+    replyTo: /@/.test(rec.email || '') ? rec.email : undefined,
+    subject: 'Saldo-Anfrage: ' + rec.name,
+    body: rec.name + ' (Nr. ' + (rec.nr || '–') + ') möchte Details zum Saldo.\n\n' +
+          'Angezeigt in der App (Stand ' + (s.stand || '–') + '):\n' +
+          'Ferien: ' + f(s.ferien) + ' h\nÜberstunden: ' + f(s.ueberstd) + ' h\nÜberzeit: ' + f(s.ueberzeit) + ' h\n\n' +
+          'Nachricht: ' + (String(text || '').trim().slice(0, 500) || '(keine)') + '\n\n' +
+          (/@/.test(rec.email || '') ? 'Antworten geht direkt an ' + rec.email + '.' : 'Keine E-Mail-Adresse hinterlegt.') +
+          '\n\nDiese Nachricht wurde automatisch erstellt.'
+  });
+  cache.put(key, '1', 60 * 60);
+  return { ok: true };
 }
 
 /* ---------- Salden (Reiter "Salden") ----------

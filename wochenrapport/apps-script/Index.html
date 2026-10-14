@@ -203,6 +203,14 @@
   .ovl{ margin-top:6px; font-size:13px; color:#8a5a0b; }
   .saldo{ margin-top:8px; padding:8px 10px; border-radius:8px; background:var(--blau-tint); font-size:13px; line-height:1.5; }
   .saldo b{ font-size:14px; } .saldo .neg{ color:var(--warn); font-weight:700; }
+  .saldo .stand{ display:inline-block; margin-bottom:4px; font-size:12px; color:var(--ink-soft); }
+  .saldo .zeile{ display:flex; gap:0 14px; flex-wrap:wrap; }
+  .saldo .zeile span b{ font-size:17px; }
+  .saldo .detail{ margin-top:8px; padding:7px 12px; font:inherit; font-size:13px; font-weight:600; border:1px solid var(--blau);
+    border-radius:8px; background:var(--card); color:var(--blau); cursor:pointer; }
+  .saldo textarea{ width:100%; margin-top:8px; padding:8px; font:inherit; font-size:14px; border:1px solid var(--line); border-radius:8px; min-height:54px; }
+  .saldo .row{ display:flex; gap:8px; margin-top:6px; }
+  .saldo .row button{ flex:1; padding:9px; font:inherit; font-size:14px; font-weight:700; border-radius:8px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -929,11 +937,27 @@
     var me=CURRENT; if(!me) return;
     google.script.run.withSuccessHandler(function(s){
       if(CURRENT!==me) return;
-      var html=s?'<b>Dein Saldo, Stand '+esc(s.stand||"?")+'</b><br>Ferien: <b>'+h2(s.ferien)+' h</b>'+(s.ferien!=null?' (≈ '+t1(s.ferien/8)+' Tage)':'')+
-        ' · Überstunden: <b>'+h2(s.ueberstd)+' h</b>'+(s.ueberzeit?' · Überzeit: '+h2(s.ueberzeit)+' h':'')+
-        (s.bewilligtTage?'<br>Bewilligte Ferien, noch nicht gebucht: '+t1(s.bewilligtTage)+' Tage':''):"";
+      var html=s?'<b>Dein Saldo</b> <span class="stand">· letzter Stand '+esc(s.stand||"unbekannt")+'</span>'+
+        '<div class="zeile"><span>Ferien <b>'+h2(s.ferien)+' h</b>'+(s.ferien!=null?' (≈ '+t1(s.ferien/8)+' Tage)':'')+'</span>'+
+        '<span>Überstunden <b>'+h2(s.ueberstd)+' h</b></span>'+(s.ueberzeit?'<span>Überzeit <b>'+h2(s.ueberzeit)+' h</b></span>':'')+'</div>'+
+        (s.bewilligtTage?'<div>Bewilligte Ferien, noch nicht gebucht: '+t1(s.bewilligtTage)+' Tage</div>':'')+
+        '<div class="dwrap"><button type="button" class="detail" data-act="open">Stimmt etwas nicht? Details anfordern</button></div>':"";
       ["wSaldo","aSaldo"].forEach(function(id){ $(id).innerHTML=html; $(id).style.display=html?"":"none"; });
     }).withFailureHandler(function(){}).getMeinSaldo(me.name,me.pinValue||"");
+  }
+  function saldoClick(e){
+    var b=e.target.closest?e.target.closest("button[data-act]"):null; if(!b) return;
+    var wrap=b.closest(".dwrap"), act=b.getAttribute("data-act");
+    if(act==="open"){ wrap.innerHTML='<textarea maxlength="500" placeholder="Was stimmt nicht? (optional, z. B. Ferien vom 5.10. fehlen)"></textarea>'+
+      '<div class="row"><button type="button" class="b-soft" data-act="cancel">Abbrechen</button><button type="button" class="b-ok" data-act="send">Anfrage senden</button></div>'; wrap.querySelector("textarea").focus(); return; }
+    if(act==="cancel"){ loadSaldo(); return; }
+    if(act==="send"){
+      var txt=wrap.querySelector("textarea").value; b.disabled=true; b.textContent="Wird gesendet …";
+      google.script.run.withSuccessHandler(function(){
+        ["wSaldo","aSaldo"].forEach(function(id){ var w=$(id).querySelector(".dwrap"); if(w) w.innerHTML='<div style="margin-top:8px;color:var(--ok);font-weight:600">✓ Anfrage gesendet – das Büro meldet sich bei dir.</div>'; });
+      }).withFailureHandler(function(err){ b.disabled=false; b.textContent="Anfrage senden"; showErr(err&&err.message?err.message:String(err)); })
+        .anfrageSaldoDetails(CURRENT.name,CURRENT.pinValue||"",txt);
+    }
   }
   function loadMeine(){
     var me=CURRENT; if(!me) return;
@@ -978,6 +1002,7 @@
     if(id==="aVon"&&$("aVon").value&&(!$("aBis").value||$("aBis").value<$("aVon").value)) $("aBis").value=$("aVon").value;
     paintAntrag(); }); });
   $("aSend").addEventListener("click",sendAntrag);
+  $("wSaldo").addEventListener("click",saldoClick); $("aSaldo").addEventListener("click",saldoClick);
   $("aMeine").addEventListener("click",function(e){
     var b=e.target.closest?e.target.closest("button[data-act=zurueck]"):null; if(!b) return;
     var id=b.closest(".aitem").getAttribute("data-id"); b.disabled=true;
