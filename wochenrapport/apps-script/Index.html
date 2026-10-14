@@ -201,6 +201,16 @@
   .aitem textarea{ width:100%; margin-top:8px; padding:10px; font:inherit; font-size:14px; border:1px solid var(--line);
     border-radius:8px; min-height:44px; }
   .ovl{ margin-top:6px; font-size:13px; color:#8a5a0b; }
+  /* ---- Problem melden ---- */
+  .probfoot{ margin-top:28px; text-align:center; }
+  .probfoot #probOpen{ font:inherit; font-size:14px; color:var(--ink-soft); background:none; border:1px dashed var(--line);
+    border-radius:10px; padding:10px 14px; cursor:pointer; }
+  .probbox{ margin-top:10px; text-align:left; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .probbox p{ margin:0 0 8px; font-size:14px; color:var(--ink-soft); }
+  .probbox textarea{ width:100%; padding:10px; font:inherit; font-size:15px; border:1px solid var(--line); border-radius:8px; min-height:90px; }
+  .probbox .row{ display:flex; gap:8px; margin-top:8px; }
+  .probbox .row button{ flex:1; padding:12px; font:inherit; font-size:15px; font-weight:700; border-radius:10px; cursor:pointer; }
+  .probok{ margin-top:10px; color:var(--ok); font-weight:600; }
   .saldo{ margin-top:8px; padding:8px 10px; border-radius:8px; background:var(--blau-tint); font-size:13px; line-height:1.5; }
   .saldo b{ font-size:14px; } .saldo .neg{ color:var(--warn); font-weight:700; }
   .saldo .stand{ display:inline-block; margin-bottom:4px; font-size:12px; color:var(--ink-soft); }
@@ -311,6 +321,9 @@
 
     <div class="weektotal"><span>Total Woche</span><b id="weekTotal">0 h</b></div>
   </section>
+
+  <!-- Problem mit der App melden (auf jedem Schirm, auch ohne Anmeldung) -->
+  <div class="probfoot" id="probFoot"><button type="button" id="probOpen">⚠ Problem mit der App melden</button></div>
 
   <div class="sendbar" id="sendbar" style="display:none"><div class="inner">
     <button id="send" type="button">Woche abschicken</button>
@@ -987,6 +1000,38 @@
     var b=e.target.closest?e.target.closest(".namebtn"):null; if(!b) return;
     pickName(NAMES[parseInt(b.getAttribute("data-i"),10)]);
   });
+  /* ---------- Problem mit der App melden ---------- */
+  function welcherSchirm(){
+    var ids={nameScreen:"Namenswahl",pinScreen:"PIN",mainScreen:"Woche",antragScreen:"Ferien / Absenz",freigabeScreen:"Freigabe",doneScreen:"Abgeschickt"};
+    for(var k in ids){ var el=$(k); if(el&&el.style.display!=="none") return ids[k]; }
+    return "?";
+  }
+  function probRender(){
+    $("probFoot").innerHTML='<button type="button" id="probOpen">⚠ Problem mit der App melden</button>';
+  }
+  $("probFoot").addEventListener("click",function(e){
+    var b=e.target.closest?e.target.closest("button"):null; if(!b) return;
+    if(b.id==="probOpen"){
+      $("probFoot").innerHTML='<div class="probbox"><p>Was funktioniert nicht? Bitte kurz beschreiben, z. B. „Woche lässt sich nicht abschicken“.'+
+        (CURRENT?'':' Du bist nicht angemeldet – bitte deinen Namen dazuschreiben.')+'</p>'+
+        '<textarea id="probText" maxlength="1000"></textarea>'+
+        '<div class="row"><button type="button" class="b-soft" id="probCancel">Abbrechen</button><button type="button" class="b-ok" id="probSend">Senden</button></div></div>';
+      $("probText").focus(); return;
+    }
+    if(b.id==="probCancel"){ probRender(); return; }
+    if(b.id==="probSend"){
+      var txt=$("probText").value.trim(); if(txt.length<5){ showErr("Bitte kurz beschreiben, was nicht funktioniert."); return; }
+      var info={ schirm:welcherSchirm(), woche:weekStart||"", version:"5", geraet:navigator.userAgent, breite:window.innerWidth+"x"+window.innerHeight,
+                 fehler:($("err").textContent||"").slice(0,300), zeit:new Date().toLocaleString("de-CH") };
+      b.disabled=true; b.textContent="Wird gesendet …";
+      google.script.run.withSuccessHandler(function(){
+        $("probFoot").innerHTML='<div class="probok">✓ Danke! Die Meldung ist angekommen, wir schauen es uns an.</div>';
+        setTimeout(probRender,8000);
+      }).withFailureHandler(function(err){ b.disabled=false; b.textContent="Senden"; showErr(err&&err.message?err.message:String(err)); })
+        .meldeProblem(CURRENT?CURRENT.name:"",CURRENT?(CURRENT.pinValue||""):"",txt,info);
+    }
+  });
+
   function resetPerson(){                // beim Personenwechsel nichts vom Vorgänger stehen lassen
     flushServerSave();
     $("cards").innerHTML=""; PROT={}; weekStart=null; MEM={};

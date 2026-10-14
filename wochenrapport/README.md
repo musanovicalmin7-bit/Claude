@@ -97,6 +97,10 @@ Die GL sieht bei jedem offenen Antrag den Saldo, bereits bewilligte, noch nicht 
 Saldo nach diesem Antrag (Tage ≈ Stunden / 8). Mitarbeiter mit PIN sehen nach dem Login ihren eigenen Saldo
 (Reiter Woche und Ferien / Absenz), Mitarbeiter ohne PIN nicht.
 
+Problem melden: Unten auf jedem Schirm (auch vor der Anmeldung) gibt es „Problem mit der App melden“.
+Die Mail geht an alle mit Rolle `App` in Spalte F (sonst an RAPPORT_EMPFAENGER), mit Schirm, Woche, Version und
+Gerät. Höchstens 1 Meldung pro Person in 5 Minuten und 20 pro Stunde insgesamt.
+
 Sicherheit: GL-Rechte prüft nur der Server nach korrektem PIN. Nach 5 falschen PIN-Eingaben
 ist der Name 15 Minuten gesperrt. Die Rolle wird nie an den Browser geschickt.
 

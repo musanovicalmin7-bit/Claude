@@ -119,7 +119,7 @@ function ensureSheets_() {
   var mitHeader = ['Mitarbeiter Nr. (exakt wie Messerli)', 'Name', 'E-Mail (optional, für PDF-Zustellung)',
                    'Kostenart Arbeit (je nach Funktion: Service/Installateur/Monteur/Lehrling …)',
                    'PIN (optional, z. B. 4-stellig – schützt vor Erfassung unter fremdem Namen)',
-                   'Rolle (GL = darf Anträge bewilligen, braucht PIN; Salden = erhält Detail-Anfragen zu Salden; mehrere mit Komma)'];
+                   'Rolle (GL = darf Anträge bewilligen, braucht PIN; Salden = erhält Detail-Anfragen zu Salden; App = erhält Problem-Meldungen; mehrere mit Komma)'];
   var mit = ss.getSheetByName(SHEET_MITARBEITER);
   if (!mit) mit = ss.insertSheet(SHEET_MITARBEITER);
   mit.getRange(1, 1, 1, mitHeader.length).setValues([mitHeader]).setFontWeight('bold');
@@ -748,6 +748,49 @@ function getMeinSaldo(name, pin) {
   var rec = readMitarbeiter_()[String(name || '').trim().toLowerCase()] || {};
   if (!rec.pin) return null;
   return saldoFuer_(saldenMap_(), rec.name || name, antragRows_().map(antragObj_), '');
+}
+
+/**
+ * "Problem mit der App melden" – geht auch ohne Anmeldung (wer nicht reinkommt, soll melden können).
+ * Empfänger: Rolle "App" im Reiter Mitarbeiter, sonst RAPPORT_EMPFAENGER. Schutz gegen Spam: pro Person
+ * 1 Meldung in 5 Minuten, insgesamt höchstens 20 pro Stunde.
+ */
+function meldeProblem(name, pin, text, info) {
+  text = String(text || '').trim().slice(0, 1000);
+  if (text.length < 5) throw new Error('Bitte kurz beschreiben, was nicht funktioniert.');
+  var map = readMitarbeiter_(), rec = null;
+  if (name) {
+    var r = checkPin(name, pin);                  // Name nur übernehmen, wenn der PIN stimmt
+    if (r.ok) rec = map[String(name).trim().toLowerCase()] || null;
+  }
+  var cache = CacheService.getScriptCache();
+  var pkey = 'problem_' + (rec ? rec.nr || rec.name : 'anonym_' + text.slice(0, 20));
+  if (cache.get(pkey)) throw new Error('Deine Meldung ist schon angekommen. Bitte 5 Minuten warten.');
+  var total = Number(cache.get('problem_total') || 0);
+  if (total >= 20) throw new Error('Zurzeit gehen sehr viele Meldungen ein. Bitte später nochmals versuchen oder direkt im Büro melden.');
+  var an = [];
+  Object.keys(map).forEach(function (k) { var m = map[k];
+    if (/(^|[\s,;])app($|[\s,;])/i.test(m.rolle || '') && /@/.test(m.email || '')) an.push(m.email); });
+  if (!an.length) an = [RAPPORT_EMPFAENGER];
+  info = info || {};
+  function z(v) { return String(v == null ? '' : v).slice(0, 300); }
+  MailApp.sendEmail({
+    to: an.join(','),
+    replyTo: rec && /@/.test(rec.email || '') ? rec.email : undefined,
+    subject: 'App-Problem: ' + (rec ? rec.name : 'nicht angemeldet'),
+    body: 'Meldung aus der Wochenrapport-App\n\n' +
+          'Von: ' + (rec ? rec.name + ' (Nr. ' + (rec.nr || '–') + ')' : 'nicht angemeldet') + '\n\n' +
+          'Beschreibung:\n' + text + '\n\n' +
+          '--- Technische Angaben ---\n' +
+          'Schirm: ' + z(info.schirm) + '\nWoche: ' + z(info.woche) + '\nVersion: ' + z(info.version) +
+          '\nZeit (Gerät): ' + z(info.zeit) + '\nBildschirm: ' + z(info.breite) + '\nGerät/Browser: ' + z(info.geraet) +
+          (info.fehler ? '\nLetzte Fehlermeldung: ' + z(info.fehler) : '') +
+          (rec && /@/.test(rec.email || '') ? '\n\nAntworten geht direkt an ' + rec.email + '.' : '') +
+          '\n\nDiese Nachricht wurde automatisch erstellt.'
+  });
+  cache.put(pkey, '1', 5 * 60);
+  cache.put('problem_total', String(total + 1), 60 * 60);
+  return { ok: true };
 }
 
 /** Mitarbeiter meldet, dass sein Saldo nicht stimmt -> Mail an Rolle "Salden" (sonst RAPPORT_EMPFAENGER). */
