@@ -350,9 +350,10 @@
   // Fallback, falls der Kostenarten-Reiter leer ist; wird beim Laden durch die Serverliste ersetzt.
   var ABSENCES=["Unfall","Krank","Ferien Bezug","Schule","Weiterbildung"];
   var KEY_DRAFT="zeit-draft-woche";        // alter Schlüssel (bis Sept. 2026), wird beim Start migriert
-  var KEY_PREFIX="zeit-draft-";           // Entwurf pro Woche: zeit-draft-YYYY-MM-DD
+  var KEY_PREFIX="zeit-draft-";           // Entwurf pro Person und Woche: zeit-draft-<Nr>-YYYY-MM-DD
   var KEY_LAST="zeit-draft-last";         // Montag der zuletzt bearbeiteten Woche
   var STORAGE_OK=true;
+  function uKey(){ return CURRENT?String(CURRENT.nr||CURRENT.name).replace(/\s+/g,"_")+"-":"?-"; }   // Entwürfe nie personenübergreifend
   var MEM={};                             // Entwürfe dieser Sitzung im Speicher (Woche -> JSON); Browser-Speicher nur als Zusatz
   var CURRENT=null;                     // gewählter Name – gilt nur für diese Sitzung (Startschirm = Namenswahl)
   var DW=["Mo","Di","Mi","Do","Fr","Sa","So"];
@@ -594,30 +595,31 @@
     if(!weekStart) return;
     var cards=collectCards(), empty=draftIsEmpty(cards);
     var json=empty?null:JSON.stringify({week:weekStart,cards:cards,prot:PROT,saved:new Date().toISOString()});
+    var hatteEntwurf=!!MEM[weekStart];   // leerer Schirm löscht zentral nur, wenn hier vorher etwas stand
     if(empty) delete MEM[weekStart]; else MEM[weekStart]=json;
     try{
-      if(empty) localStorage.removeItem(KEY_PREFIX+weekStart);
-      else { localStorage.setItem(KEY_PREFIX+weekStart,json); localStorage.setItem(KEY_LAST,weekStart); }
+      if(empty) localStorage.removeItem(KEY_PREFIX+uKey()+weekStart);
+      else { localStorage.setItem(KEY_PREFIX+uKey()+weekStart,json); localStorage.setItem(KEY_LAST+uKey(),weekStart); }
     }catch(e){}
-    scheduleServerSave(weekStart,json);
+    if(!empty||hatteEntwurf) scheduleServerSave(weekStart,json);
   }
   /* Zentrale Sicherung im Sheet (Reiter "Entwürfe"): der Browser-Speicher ist im
      eingebetteten Google-Fenster nicht verlässlich. Gesendet wird gebündelt, 1.5 s nach der letzten Änderung. */
   var SRV={timer:null,pending:{},busy:false};
   function scheduleServerSave(week,json){
     if(!CURRENT) return;
-    SRV.pending[week]=json; clearTimeout(SRV.timer);
+    SRV.pending[week+"|"+(CURRENT.nr||"")+"|"+CURRENT.name]=json; clearTimeout(SRV.timer);
     SRV.timer=setTimeout(flushServerSave,1500);
   }
   function flushServerSave(){
-    if(!CURRENT||SRV.busy) return;
-    var weeks=Object.keys(SRV.pending); if(!weeks.length) return;
-    var week=weeks[0], json=SRV.pending[week]; delete SRV.pending[week];
+    if(SRV.busy) return;
+    var keys=Object.keys(SRV.pending); if(!keys.length) return;
+    var k=keys[0], json=SRV.pending[k], parts=k.split("|"), week=parts[0]; delete SRV.pending[k];
     SRV.busy=true; setStatus(json?"Entwurf wird gesichert …":"");
     google.script.run
       .withSuccessHandler(function(){ SRV.busy=false; setStatus(json?"Entwurf gesichert":""); flushServerSave(); })
-      .withFailureHandler(function(err){ SRV.busy=false; SRV.pending[week]=json; setStatus("Entwurf konnte nicht gesichert werden: "+((err&&err.message)||"Verbindung prüfen")); setTimeout(flushServerSave,8000); })
-      .saveEntwurf(CURRENT.nr||"",CURRENT.name,week,json);
+      .withFailureHandler(function(err){ SRV.busy=false; SRV.pending[k]=json; setStatus("Entwurf konnte nicht gesichert werden: "+((err&&err.message)||"Verbindung prüfen")); setTimeout(flushServerSave,8000); })
+      .saveEntwurf(parts[1],parts.slice(2).join("|"),week,json);
   }
   var statusT=null;
   function setStatus(t){
@@ -639,7 +641,7 @@
         var loc=loadDraft(w);
         if(loc&&loc.saved&&d.saved&&loc.saved>=d.saved) return;   // lokal ist gleich neu oder neuer
         MEM[w]=srv.json;
-        try{ localStorage.setItem(KEY_PREFIX+w,srv.json); }catch(e){}
+        try{ localStorage.setItem(KEY_PREFIX+uKey()+w,srv.json); }catch(e){}
         if(w===weekStart&&draftIsEmpty(collectCards())){
           $("cards").innerHTML=""; PROT=d.prot||{}; d.cards.forEach(function(c){ makeCard(c); }); paintWeekTotal(); restored=w;
         } else if(!restored&&draftIsEmpty(collectCards())&&!loadDraft(weekStart)){
@@ -652,14 +654,14 @@
   function loadDraft(iso){
     iso=iso||weekStart;
     var raw=MEM[iso]||null;
-    if(!raw){ try{ raw=localStorage.getItem(KEY_PREFIX+iso); }catch(e){ raw=null; } }
+    if(!raw){ try{ raw=localStorage.getItem(KEY_PREFIX+uKey()+iso); }catch(e){ raw=null; } }
     try{ var d=JSON.parse(raw); return (d&&d.cards&&d.cards.length)?d:null; }catch(e){ return null; }
   }
-  function clearDraft(iso){ clearTimeout(SRV.timer); delete SRV.pending[iso]; delete MEM[iso]; try{ localStorage.removeItem(KEY_PREFIX+iso); if(localStorage.getItem(KEY_LAST)===iso) localStorage.removeItem(KEY_LAST); }catch(e){} }
+  function clearDraft(iso){ clearTimeout(SRV.timer); if(CURRENT) delete SRV.pending[iso+"|"+(CURRENT.nr||"")+"|"+CURRENT.name]; delete MEM[iso]; try{ localStorage.removeItem(KEY_PREFIX+uKey()+iso); if(localStorage.getItem(KEY_LAST+uKey())===iso) localStorage.removeItem(KEY_LAST+uKey()); }catch(e){} }
   /* Woche mit offenem Entwurf (nur diese oder letzte Woche), sonst diese Woche. */
   function weekWithDraft(){
     var thisMon=isoDate(mondayOf(new Date())), lastMon=isoDate(addDays(thisMon,-7)), last=null;
-    try{ last=localStorage.getItem(KEY_LAST); }catch(e){}
+    try{ last=localStorage.getItem(KEY_LAST+uKey()); }catch(e){}
     if(last&&(last===thisMon||last===lastMon)&&loadDraft(last)) return last;
     if(loadDraft(thisMon)) return thisMon;
     if(loadDraft(lastMon)) return lastMon;
@@ -670,10 +672,10 @@
     try{
       var raw=localStorage.getItem(KEY_DRAFT); if(!raw) return;
       var d=JSON.parse(raw);
-      if(d&&d.week&&d.cards&&d.cards.length&&!draftIsEmpty(d.cards)&&!localStorage.getItem(KEY_PREFIX+d.week)){
-        localStorage.setItem(KEY_PREFIX+d.week,JSON.stringify(d)); localStorage.setItem(KEY_LAST,d.week);
-      }
+      // Alte Entwürfe ohne Personenbezug werden verworfen – die zentrale Sicherung im Sheet bleibt.
       localStorage.removeItem(KEY_DRAFT);
+      for(var i=localStorage.length-1;i>=0;i--){ var k=localStorage.key(i);
+        if(k&&/^zeit-draft-(last$|\d{4}-\d{2}-\d{2}$)/.test(k)) localStorage.removeItem(k); }
     }catch(e){}
   }
   function storageCheck(){
@@ -791,7 +793,7 @@
       .withSuccessHandler(function(res){
         btn.disabled=false; btn.textContent="Woche abschicken";
         clearDraft(weekStart);
-        SRV.pending[weekStart]=null; flushServerSave();   // Entwurf auch zentral löschen (falls eine Sicherung noch unterwegs war)
+        SRV.pending[weekStart+"|"+(me.nr||"")+"|"+me.name]=null; flushServerSave();   // Entwurf auch zentral löschen (falls eine Sicherung noch unterwegs war)
         $("mainScreen").style.display="none"; $("sendbar").style.display="none";
         var a=new Date(weekStart+"T12:00:00");
         $("doneText").textContent=res.count+" Buchung"+(res.count>1?"en":"")+" für die Woche ab "+chDate(a)+" gespeichert.";
@@ -985,7 +987,14 @@
     var b=e.target.closest?e.target.closest(".namebtn"):null; if(!b) return;
     pickName(NAMES[parseInt(b.getAttribute("data-i"),10)]);
   });
-  $("changeName").addEventListener("click",function(){ CURRENT=null; showName(); });
+  function resetPerson(){                // beim Personenwechsel nichts vom Vorgänger stehen lassen
+    flushServerSave();
+    $("cards").innerHTML=""; PROT={}; weekStart=null; MEM={};
+    $("aMeine").innerHTML=""; $("frOffen").innerHTML=""; $("frErledigt").innerHTML="";
+    $("wSaldo").innerHTML=""; $("aSaldo").innerHTML="";
+    CURRENT=null;
+  }
+  $("changeName").addEventListener("click",function(){ resetPerson(); showName(); });
   $("weeks").addEventListener("click",function(e){
     var b=e.target.closest?e.target.closest(".week"):null; if(!b) return;
     weekStart=b.getAttribute("data-iso"); renderWeeks();
@@ -1030,8 +1039,7 @@
   $("signOk").addEventListener("click",SIGN.confirm);
   $("again").addEventListener("click",function(){
     // zurück zum Startschirm (Namenswahl) – wichtig bei geteilten Geräten
-    $("cards").innerHTML=""; PROT={}; weekStart=null;
-    CURRENT=null; showName();
+    resetPerson(); showName();
   });
   window.addEventListener("scroll",AC.reposition,true); window.addEventListener("resize",AC.reposition);
 
