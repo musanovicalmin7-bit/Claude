@@ -237,7 +237,7 @@
   <!-- Schritt 1: Name (nur beim ersten Mal) -->
   <section id="nameScreen" style="display:none">
     <h2>Wer bist du?</h2>
-    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5 · Ferienanträge mit Freigabe</div>
+    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.2 · Ferienanträge mit Freigabe</div>
     <input id="nameSearch" placeholder="Name tippen …" autocomplete="off">
     <div id="nameList"></div>
   </section>
@@ -363,8 +363,8 @@
   // Fallback, falls der Kostenarten-Reiter leer ist; wird beim Laden durch die Serverliste ersetzt.
   var ABSENCES=["Unfall","Krank","Ferien Bezug","Schule","Weiterbildung"];
   var KEY_DRAFT="zeit-draft-woche";        // alter Schlüssel (bis Sept. 2026), wird beim Start migriert
-  var KEY_PREFIX="zeit-draft-";           // Entwurf pro Person und Woche: zeit-draft-<Nr>-YYYY-MM-DD
-  var KEY_LAST="zeit-draft-last";         // Montag der zuletzt bearbeiteten Woche
+  var KEY_PREFIX="zeit-entwurf-";         // Entwurf pro Person und Woche: zeit-entwurf-<Nr>-YYYY-MM-DD (ab 5.2)
+  var KEY_LAST="zeit-entwurf-last";         // Montag der zuletzt bearbeiteten Woche
   var STORAGE_OK=true;
   function uKey(){ return CURRENT?String(CURRENT.nr||CURRENT.name).replace(/\s+/g,"_")+"-":"?-"; }   // Entwürfe nie personenübergreifend
   var MEM={};                             // Entwürfe dieser Sitzung im Speicher (Woche -> JSON); Browser-Speicher nur als Zusatz
@@ -683,12 +683,10 @@
   /* Alten Ein-Wochen-Entwurf (Schlüssel zeit-draft-woche) einmalig in das neue Schema übernehmen. */
   function migrateDraft(){
     try{
-      var raw=localStorage.getItem(KEY_DRAFT); if(!raw) return;
-      var d=JSON.parse(raw);
       // Alte Entwürfe ohne Personenbezug werden verworfen – die zentrale Sicherung im Sheet bleibt.
       localStorage.removeItem(KEY_DRAFT);
       for(var i=localStorage.length-1;i>=0;i--){ var k=localStorage.key(i);
-        if(k&&/^zeit-draft-(last$|\d{4}-\d{2}-\d{2}$)/.test(k)) localStorage.removeItem(k); }
+        if(k&&/^zeit-draft-/.test(k)) localStorage.removeItem(k); }   // alle lokalen Kopien vor 5.2 (ohne sicheren Personenbezug)
     }catch(e){}
   }
   function storageCheck(){

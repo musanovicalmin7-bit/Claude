@@ -93,6 +93,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Erinnerung offene Anträge einrichten (täglich)', 'setupErinnerung')
     .addItem('Test: Antrag-Mail an GL senden', 'testAntragMail')
+    .addItem('Fremde Einträge aus Entwürfen entfernen …', 'bereinigeEntwuerfe')
     .addToUi();
 }
 
@@ -938,7 +939,10 @@ function entscheidAntrag(name, pin, id, entscheid, kommentar) {
 function getBewilligteWoche(name, pin, weekIso) {
   requirePin_(name, pin);
   var mon = isoToDate_(weekIso); if (!mon) return [];
-  var key = String(name || '').trim().toLowerCase(), labels = Object.keys(readKostenarten_().absenz);
+  return bewilligtFuer_(String(name || '').trim().toLowerCase(), mon, Object.keys(readKostenarten_().absenz), antragRows_());
+}
+/** Vorfüllung einer Woche aus den bewilligten Anträgen einer Person: [{auftrag, h[7]}]. */
+function bewilligtFuer_(key, mon, labels, rows) {
   function label(a) {
     if (a.typ === 'Ferien') {
       if (a.halb && a.abzug === 'ÜZ-Konto') return labels.filter(function (l) { return /kompensation/i.test(l); })[0] || 'Kompensation Überstunden (frei)';
@@ -947,7 +951,7 @@ function getBewilligteWoche(name, pin, weekIso) {
     return a.art;
   }
   var byLabel = {}, feiern = feiertage_(mon.getFullYear()).concat(feiertage_(mon.getFullYear() + 1));
-  antragRows_().forEach(function (r) {
+  rows.forEach(function (r) {
     if (r.v[A.STATUS] !== 'bewilligt' || String(r.v[A.MA]).trim().toLowerCase() !== key) return;
     var a = antragObj_(r), lb = label(a);
     for (var i = 0; i < 5; i++) {
@@ -959,6 +963,53 @@ function getBewilligteWoche(name, pin, weekIso) {
     }
   });
   return Object.keys(byLabel).map(function (k) { return { auftrag: k, h: byLabel[k] }; });
+}
+
+/**
+ * Menü: entfernt Karten, die durch den Fehler vor Version 5.2 (Personenwechsel auf einem Gerät) in
+ * fremde Entwürfe geraten sind. Erkannt wird eine Karte, die genau der Vorfüllung aus einem bewilligten
+ * Antrag einer ANDEREN Person entspricht (gleiche Absenz, gleiche Stunden pro Tag), während die Person
+ * selbst für diese Woche nichts Bewilligtes hat. Zeigt die Liste und löscht erst nach Bestätigung.
+ */
+function bereinigeEntwuerfe() {
+  var ui = SpreadsheetApp.getUi(), sh = entwurfSheet_(), v = sh.getDataRange().getValues();
+  var labels = Object.keys(readKostenarten_().absenz), rows = antragRows_();
+  var personen = {};
+  rows.forEach(function (r) { if (r.v[A.STATUS] === 'bewilligt') personen[String(r.v[A.MA]).trim().toLowerCase()] = String(r.v[A.MA]).trim(); });
+  var treffer = [], cache = {};
+  function prefill(key, week) {
+    var ck = key + '|' + week;
+    if (!cache[ck]) cache[ck] = bewilligtFuer_(key, isoToDate_(week), labels, rows);
+    return cache[ck];
+  }
+  for (var i = v.length - 1; i >= 1; i--) {
+    var name = String(v[i][1] || '').trim(), key = name.toLowerCase(), week = entwurfWeek_(v[i][2]), d = null;
+    try { d = JSON.parse(String(v[i][3] || '')); } catch (e) { continue; }
+    if (!d || !d.cards || !isoToDate_(week)) continue;
+    if (prefill(key, week).length) continue;                       // Person hat selbst Bewilligtes in dieser Woche
+    var fremd = [];
+    Object.keys(personen).forEach(function (p) { if (p !== key) fremd = fremd.concat(prefill(p, week)); });
+    if (!fremd.length) continue;
+    var rest = d.cards.filter(function (c) {
+      return !fremd.some(function (f) { return f.auftrag === c.auftrag && JSON.stringify((c.h || []).map(Number)) === JSON.stringify(f.h); });
+    });
+    if (rest.length === d.cards.length) continue;
+    treffer.push({ row: i + 1, name: name, week: week, weg: d.cards.length - rest.length, d: d, rest: rest });
+  }
+  if (!treffer.length) { ui.alert('Keine fremden Einträge in den Entwürfen gefunden.'); return; }
+  var liste = treffer.map(function (t) { return '• ' + t.name + ', Woche ' + chFromIso_(t.week) + ': ' + t.weg + ' Karte(n)'; }).join('\n');
+  var res = ui.alert('Fremde Einträge in Entwürfen', 'Diese Karten stammen aus Anträgen anderer Personen und werden entfernt:\n\n' +
+                     liste + '\n\nJetzt entfernen?', ui.ButtonSet.YES_NO);
+  if (res !== ui.Button.YES) return;
+  var lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    treffer.forEach(function (t) {                                   // von unten nach oben: Zeilennummern bleiben gültig
+      var leer = !t.rest.some(function (c) { return (c.auftrag && String(c.auftrag).trim()) || (c.h || []).some(function (x) { return Number(x) > 0; }); });
+      if (leer) sh.deleteRow(t.row);
+      else { t.d.cards = t.rest; t.d.saved = new Date().toISOString(); sh.getRange(t.row, 4, 1, 2).setValues([[JSON.stringify(t.d), new Date()]]); }
+    });
+  } finally { lock.releaseLock(); }
+  ui.alert(treffer.length + ' Entwurf/Entwürfe bereinigt. Betroffene Mitarbeiter sehen beim nächsten Öffnen der App die korrigierte Woche.');
 }
 
 /** Täglicher Hinweis an die GL, wenn Anträge seit mehr als 3 Tagen offen sind. */
