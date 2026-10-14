@@ -368,7 +368,7 @@
     x.setHours(12,0,0,0); return x; }
   function addDays(iso,n){ var d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n); return d; }
   function fmtH(n){ return String(Math.round(n*10)/10).replace(".",","); }
-  function showErr(t){ var e=$("err"); e.textContent=t; e.classList.add("show");
+  function showErr(t){ var e=$("err"); e.textContent=String(t).replace(/^(Error|Exception):\s*/,""); e.classList.add("show");
     setTimeout(function(){ e.classList.remove("show"); },5000); }
 
   /* ---------- Name (bewusst NICHT gespeichert – Startschirm ist immer die Namenswahl) ---------- */

@@ -756,7 +756,7 @@ function anfrageSaldoDetails(name, pin, text) {
   var map = readMitarbeiter_(), rec = map[String(name || '').trim().toLowerCase()] || {};
   if (!rec.pin) throw new Error('Nur mit PIN möglich.');
   var cache = CacheService.getScriptCache(), key = 'saldoanfrage_' + String(rec.nr || rec.name);
-  if (cache.get(key)) throw new Error('Deine Anfrage ist bereits unterwegs. Bitte etwas warten.');
+  if (cache.get(key)) throw new Error('Deine Anfrage ist bereits unterwegs. Bitte 15 Minuten warten.');
   var an = [];
   Object.keys(map).forEach(function (k) { var r = map[k];
     if (/(^|[\s,;])salden($|[\s,;])/i.test(r.rolle || '') && /@/.test(r.email || '')) an.push(r.email); });
@@ -776,7 +776,7 @@ function anfrageSaldoDetails(name, pin, text) {
           (/@/.test(rec.email || '') ? 'Antworten geht direkt an ' + rec.email + '.' : 'Keine E-Mail-Adresse hinterlegt.') +
           '\n\nDiese Nachricht wurde automatisch erstellt.'
   });
-  cache.put(key, '1', 60 * 60);
+  cache.put(key, '1', 15 * 60);
   return { ok: true };
 }
 
