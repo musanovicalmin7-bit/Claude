@@ -769,7 +769,9 @@ function anfrageSaldoDetails(name, pin, text) {
     subject: 'Saldo-Anfrage: ' + rec.name,
     body: rec.name + ' (Nr. ' + (rec.nr || '–') + ') möchte Details zum Saldo.\n\n' +
           'Angezeigt in der App (Stand ' + (s.stand || '–') + '):\n' +
-          'Ferien: ' + f(s.ferien) + ' h\nÜberstunden: ' + f(s.ueberstd) + ' h\nÜberzeit: ' + f(s.ueberzeit) + ' h\n\n' +
+          'Ferien: ' + f(s.ferien) + ' h\nÜberstunden total: ' + f(s.ueberstd == null && s.ueberzeit == null ? null :
+          Math.round(((s.ueberstd || 0) + (s.ueberzeit || 0)) * 100) / 100) + ' h' +
+          ' (Überstunden ' + f(s.ueberstd) + ' h + Überzeit ' + f(s.ueberzeit) + ' h)\n\n' +
           'Nachricht: ' + (String(text || '').trim().slice(0, 500) || '(keine)') + '\n\n' +
           (/@/.test(rec.email || '') ? 'Antworten geht direkt an ' + rec.email + '.' : 'Keine E-Mail-Adresse hinterlegt.') +
           '\n\nDiese Nachricht wurde automatisch erstellt.'
