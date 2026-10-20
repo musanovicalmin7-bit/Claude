@@ -220,6 +220,7 @@
     border-radius:8px; background:var(--card); color:var(--blau); cursor:pointer; }
   .saldo textarea{ width:100%; margin-top:8px; padding:8px; font:inherit; font-size:14px; border:1px solid var(--line); border-radius:8px; min-height:54px; }
   .saldo .row{ display:flex; gap:8px; margin-top:6px; }
+  .saldo .hinweis{ margin-top:8px; padding:7px 10px; border-left:3px solid var(--warn); background:#FBECE4; color:#7a3915; border-radius:6px; font-weight:600; }
   .saldo .row button{ flex:1; padding:9px; font:inherit; font-size:14px; font-weight:700; border-radius:8px; cursor:pointer; }
 </style>
 </head>
@@ -237,7 +238,7 @@
   <!-- Schritt 1: Name (nur beim ersten Mal) -->
   <section id="nameScreen" style="display:none">
     <h2>Wer bist du?</h2>
-    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.2 · Ferienanträge mit Freigabe</div>
+    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.3 · Ferienanträge mit Freigabe</div>
     <input id="nameSearch" placeholder="Name tippen …" autocomplete="off">
     <div id="nameList"></div>
   </section>
@@ -925,6 +926,7 @@
     var h='<div class="saldo"><b>Saldo Stand '+esc(s.stand||"?")+'</b><br>Ferien: <b>'+h2(s.ferien)+' h</b>'+(s.ferien!=null?' (≈ '+t1(s.ferien/8)+' Tage)':'')+
       ' · Überstunden: <b>'+h2(uTotal(s))+' h</b>';
     if(s.bewilligtTage) h+='<br>Bereits bewilligt, noch nicht gebucht: '+h2(s.bewilligtTage)+' Tage';
+    if(s.hinweis) h+='<div class="hinweis">'+esc(s.hinweis)+'</div>';
     if(typ==="Ferien"&&tage&&s.ferien!=null){
       var rest=s.ferien-(s.bewilligtTage+tage)*8;
       h+='<br>Nach diesem Antrag: <span class="'+(rest<0?'neg':'')+'">≈ '+h2(rest)+' h ('+t1(rest/8)+' Tage)</span>';
@@ -955,6 +957,7 @@
         '<div class="zeile"><span>Ferien <b>'+h2(s.ferien)+' h</b>'+(s.ferien!=null?' (≈ '+t1(s.ferien/8)+' Tage)':'')+'</span>'+
         '<span>Überstunden <b>'+h2(uTotal(s))+' h</b></span></div>'+
         (s.bewilligtTage?'<div>Bewilligte Ferien, noch nicht gebucht: '+t1(s.bewilligtTage)+' Tage</div>':'')+
+        (s.hinweis?'<div class="hinweis">'+esc(s.hinweis)+'</div>':'')+
         '<div class="dwrap"><button type="button" class="detail" data-act="open">Stimmt etwas nicht? Details anfordern</button></div>':"";
       ["wSaldo","aSaldo"].forEach(function(id){ $(id).innerHTML=html; $(id).style.display=html?"":"none"; });
     }).withFailureHandler(function(){}).getMeinSaldo(me.name,me.pinValue||"");

@@ -92,7 +92,9 @@ Ersetzt die Papierformulare. Ablauf:
    *Ausgebucht (Sekretariat)* ab.
 
 Salden: Reiter **`Salden`** (A Nr., B Name, C Ferien-Saldo h, D Überstunden-Saldo h, E Überzeit-Saldo h,
-F Stand). Wird wöchentlich aus der Jahresstundenkontrolle (Messerli) neu eingefügt (ab Zeile 2 alles ersetzen).
+F Stand, G Hinweis an Mitarbeiter). Wird wöchentlich aus der Jahresstundenkontrolle (Messerli) neu eingefügt
+(ab Zeile 2 alles ersetzen). Spalte G erscheint beim Mitarbeiter als gelber Hinweis unter dem Saldo, z. B.
+„Noch nicht erfasst: KW41 (05.–09.10.), KW42 (12.–16.10.)“ (auch die GL sieht ihn beim Antrag).
 Die GL sieht bei jedem offenen Antrag den Saldo, bereits bewilligte, noch nicht gebuchte Ferientage und den
 Saldo nach diesem Antrag (Tage ≈ Stunden / 8). Mitarbeiter mit PIN sehen nach dem Login ihren eigenen Saldo
 (Reiter Woche und Ferien / Absenz), Mitarbeiter ohne PIN nicht.
