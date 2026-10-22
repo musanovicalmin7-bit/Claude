@@ -238,7 +238,7 @@
   <!-- Schritt 1: Name (nur beim ersten Mal) -->
   <section id="nameScreen" style="display:none">
     <h2>Wer bist du?</h2>
-    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.3 · Ferienanträge mit Freigabe</div>
+    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.4 · Ferienanträge mit Freigabe</div>
     <input id="nameSearch" placeholder="Name tippen …" autocomplete="off">
     <div id="nameList"></div>
   </section>
@@ -382,7 +382,7 @@
   function mondayOf(d){ var x=new Date(d); var day=(x.getDay()+6)%7; x.setDate(x.getDate()-day);
     x.setHours(12,0,0,0); return x; }
   function addDays(iso,n){ var d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n); return d; }
-  function fmtH(n){ return String(Math.round(n*10)/10).replace(".",","); }
+  function fmtH(n){ return String(Math.round(n*100)/100).replace(".",","); }   // 2 Stellen, damit 0,25 / 0,75 sichtbar sind
   function showErr(t){ var e=$("err"); e.textContent=String(t).replace(/^(Error|Exception):\s*/,""); e.classList.add("show");
     setTimeout(function(){ e.classList.remove("show"); },5000); }
 
@@ -485,10 +485,10 @@
       paint();
     });
     div.querySelector(".minus").addEventListener("click",function(){
-      if(editing<0) return; hours[editing]=Math.max(0,Math.round((hours[editing]-0.5)*10)/10);
+      if(editing<0) return; hours[editing]=Math.max(0,Math.round((hours[editing]-0.25)*4)/4);   // Viertelstunden
       if(hours[editing]===0) editing=-1; paint(); });
     div.querySelector(".plus").addEventListener("click",function(){
-      if(editing<0) return; hours[editing]=Math.min(16,Math.round((hours[editing]+0.5)*10)/10); paint(); });
+      if(editing<0) return; hours[editing]=Math.min(16,Math.round((hours[editing]+0.25)*4)/4); paint(); });
     div.getData=function(){ return { auftrag:inp.value, h:hours.slice() }; };
     inp.addEventListener("focus",function(){ AC.open(inp); });
     inp.addEventListener("input",function(){ AC.open(inp); saveDraft(); });
