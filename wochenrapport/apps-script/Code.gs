@@ -120,7 +120,9 @@ function ensureSheets_() {
   var mitHeader = ['Mitarbeiter Nr. (exakt wie Messerli)', 'Name', 'E-Mail (optional, für PDF-Zustellung)',
                    'Kostenart Arbeit (je nach Funktion: Service/Installateur/Monteur/Lehrling …)',
                    'PIN (optional, z. B. 4-stellig – schützt vor Erfassung unter fremdem Namen)',
-                   'Rolle (GL = darf Anträge bewilligen, braucht PIN; Salden = erhält Detail-Anfragen zu Salden; App = erhält Problem-Meldungen; mehrere mit Komma)'];
+                   'Rolle (GL = darf Anträge bewilligen, braucht PIN; Salden = erhält Detail-Anfragen zu Salden; App = erhält Problem-Meldungen; mehrere mit Komma)',
+                   'Soll pro Arbeitstag (h, leer = 8; z. B. 7.2 oder 6.4 bei Teilzeit)',
+                   'Arbeitstage (leer = Mo–Fr; z. B. Mo–Do oder Di, Mi, Fr)'];
   var mit = ss.getSheetByName(SHEET_MITARBEITER);
   if (!mit) mit = ss.insertSheet(SHEET_MITARBEITER);
   mit.getRange(1, 1, 1, mitHeader.length).setValues([mitHeader]).setFontWeight('bold');
@@ -557,7 +559,7 @@ function exportMesserli() {
 
   var data = ss_().getSheetByName(SHEET_RAPPORTE).getDataRange().getValues();
   var lines = ['Datum;Projektnummer;Mitarbeiter Nummer;Mitarbeiter;Bemerkung;Kostenart-Nummer;Dauer'];
-  var warn = {}, count = 0;
+  var warn = {}, count = 0, belegt = {};
 
   for (var i = 1; i < data.length; i++) {
     var maNr = trim_(data[i][1]), ma = trim_(data[i][2]);
@@ -569,6 +571,8 @@ function exportMesserli() {
     var auftrag = trim_(data[i][6]);
     var stunden = Number(data[i][7]);
     if (!datum || !auftrag || !(stunden > 0)) continue;
+    belegt[ma.toLowerCase() + '|' + fmtChDate_(datum)] = 1;
+    if (maNr) belegt['#' + maNr + '|' + fmtChDate_(datum)] = 1;
     if (datum < von || datum > bis) continue;
 
     var rec = mit[ma.toLowerCase()] || {};
@@ -588,15 +592,53 @@ function exportMesserli() {
     count++;
   }
 
+  var ergaenzt = ergaenzeBewilligte_(von, bis, kosten, mit, belegt, lines, warn);
+  count += ergaenzt.zeilen;
+
   if (!count) { ui.alert('Keine Buchungen im gewählten Zeitraum gefunden.'); return; }
 
   var name = 'Messerli-Import_' + fmtChDate_(von).replace(/\./g, '-') + '_bis_' + fmtChDate_(bis).replace(/\./g, '-') + '.csv';
   var file = DriveApp.createFile(name, '﻿' + lines.join('\r\n'), 'text/csv');
 
   var msg = count + ' Buchungszeilen exportiert.\n\nDatei in Google Drive:\n' + file.getUrl();
+  if (ergaenzt.zeilen) msg += '\n\nAus bewilligten Anträgen ergänzt (Woche nicht abgeschickt):\n- ' + ergaenzt.liste.join('\n- ');
   var warnKeys = Object.keys(warn);
   if (warnKeys.length) msg += '\n\n⚠ Bitte prüfen:\n- ' + warnKeys.join('\n- ');
   ui.alert('Messerli-Export erstellt', msg, ui.ButtonSet.OK);
+}
+
+/**
+ * Bewilligte Ferien/Absenzen, die nicht über einen abgeschickten Wochenrapport kommen, direkt in den Export
+ * aufnehmen: nur Arbeitstage laut Pensum, ohne Feiertage, nur wo die Person an dem Tag keinen eigenen
+ * Eintrag hat, und nicht, wenn der Antrag im Sheet schon als "Ausgebucht (Sekretariat)" abgehakt ist.
+ */
+function ergaenzeBewilligte_(von, bis, kosten, mit, belegt, lines, warn) {
+  var labels = Object.keys(kosten.absenz), proPerson = {}, zeilen = 0, feiern = {};
+  antragRows_().forEach(function (r) {
+    var ausgebucht = r.v[A.AUSGEBUCHT];
+    if (r.v[A.STATUS] !== 'bewilligt' || ausgebucht === true || /^(ja|x|true)$/i.test(String(ausgebucht).trim())) return;
+    var a = antragObj_(r), key = a.ma.trim().toLowerCase(), rec = mit[key] || {};
+    var maNr = rec.nr || trim_(r.v[A.NR]), pens = pensum_(rec), lb = antragLabel_(a, labels), ka = kosten.absenz[lb];
+    if (!ka) { warn['Kostenart fehlt für Antrag "' + lb + '" (' + a.ma + ') – nicht ergänzt'] = 1; return; }
+    var d = isoToDate_(a.von), end = isoToDate_(a.bis);
+    if (!d || !end) return;
+    if (d < von) d = new Date(von.getFullYear(), von.getMonth(), von.getDate(), 12, 0, 0);
+    for (; d <= end && d <= bis; d.setDate(d.getDate() + 1)) {
+      var y = d.getFullYear(); if (!feiern[y]) feiern[y] = feiertage_(y);
+      var ch = fmtChDate_(d), wd = d.getDay();
+      if (pens.tage.indexOf(wd) < 0 || feiern[y].indexOf(isoDate_(d)) >= 0) continue;
+      if (belegt[key + '|' + ch] || (maNr && belegt['#' + maNr + '|' + ch])) continue;
+      belegt[key + '|' + ch] = 1;
+      lines.push([ch, '', maNr, a.ma.trim(), lb, ka, toHHMM_(a.halb ? pens.stunden / 2 : pens.stunden)].map(csvCell_).join(';'));
+      zeilen++;
+      if (!/^\d+$/.test(String(ka))) warn['Kostenart "' + ka + '" (' + lb + ') nimmt der Messerli-Import evtl. nicht an – sonst von Hand buchen'] = 1;
+      (proPerson[a.ma.trim()] = proPerson[a.ma.trim()] || []).push(ch.slice(0, 6));
+    }
+  });
+  var liste = Object.keys(proPerson).sort().map(function (n) {
+    return n + ': ' + proPerson[n].length + ' Tag' + (proPerson[n].length === 1 ? '' : 'e') + ' (' + proPerson[n].join(', ') + ')';
+  });
+  return { zeilen: zeilen, liste: liste };
 }
 
 /* ------------------------------------------------------------------
@@ -611,7 +653,7 @@ var ANTRAG_HEADER = ['ID', 'Eingang', 'Typ', 'Mitarbeiter Nr.', 'Mitarbeiter', '
                      'Soldmeldekarte abgegeben', 'Status', 'Entscheid am', 'Entscheid von', 'Kommentar GL',
                      'Ausbezahlt (LB)', 'Ausgebucht (Sekretariat)'];
 var A = { ID: 0, EINGANG: 1, TYP: 2, NR: 3, MA: 4, ART: 5, VON: 6, BIS: 7, TAGE: 8, HALB: 9, ABZUG: 10,
-          BEM: 11, AUFGEBOT: 12, SOLD: 13, STATUS: 14, ENT_AM: 15, ENT_VON: 16, KOMMENTAR: 17 };
+          BEM: 11, AUFGEBOT: 12, SOLD: 13, STATUS: 14, ENT_AM: 15, ENT_VON: 16, KOMMENTAR: 17, AUSGEBUCHT: 19 };
 
 function antragSheet_() {
   var ss = ss_(), sh = ss.getSheetByName(SHEET_ANTRAG);
@@ -672,6 +714,28 @@ function arbeitstage_(vonIso, bisIso) {
     d.setDate(d.getDate() + 1);
   }
   return n;
+}
+/** Pensum aus dem Reiter Mitarbeiter: Stunden pro Arbeitstag und Wochentage (1 = Mo … 5 = Fr). */
+function pensum_(rec) {
+  var h = Number(String((rec || {}).tagSoll || '').replace(',', '.'));
+  if (!(h > 0 && h <= 12)) h = SOLL_STUNDEN / 5;
+  var txt = String((rec || {}).arbeitstage || '').toLowerCase().replace(/\s*[–-]\s*/g, '–'), tage = [];
+  var namen = ['mo', 'di', 'mi', 'do', 'fr'];
+  txt.split(/[,;\s]+/).forEach(function (teil) {
+    var m = /^(mo|di|mi|do|fr)\w*(?:[–-](mo|di|mi|do|fr)\w*)?$/.exec(teil);
+    if (!m) return;
+    var a = namen.indexOf(m[1]) + 1, b = m[2] ? namen.indexOf(m[2]) + 1 : a;
+    for (var t = a; t <= b; t++) if (tage.indexOf(t) < 0) tage.push(t);
+  });
+  return { stunden: h, tage: tage.length ? tage : [1, 2, 3, 4, 5] };
+}
+/** Buchungstext eines bewilligten Antrags (wie in der Vorbefüllung der App). */
+function antragLabel_(a, labels) {
+  if (a.typ === 'Ferien') {
+    if (a.halb && a.abzug === 'ÜZ-Konto') return labels.filter(function (l) { return /kompensation/i.test(l); })[0] || 'Kompensation Überstunden (frei)';
+    return labels.filter(function (l) { return /^ferien bezug$/i.test(l); })[0] || 'Ferien Bezug';
+  }
+  return a.art;
 }
 function glEmpfaenger_() {
   var map = readMitarbeiter_(), out = [];
@@ -948,27 +1012,23 @@ function entscheidAntrag(name, pin, id, entscheid, kommentar) {
 function getBewilligteWoche(name, pin, weekIso) {
   requirePin_(name, pin);
   var mon = isoToDate_(weekIso); if (!mon) return [];
-  return bewilligtFuer_(String(name || '').trim().toLowerCase(), mon, Object.keys(readKostenarten_().absenz), antragRows_());
+  var key = String(name || '').trim().toLowerCase();
+  return bewilligtFuer_(key, mon, Object.keys(readKostenarten_().absenz), antragRows_(), pensum_(readMitarbeiter_()[key]));
 }
-/** Vorfüllung einer Woche aus den bewilligten Anträgen einer Person: [{auftrag, h[7]}]. */
-function bewilligtFuer_(key, mon, labels, rows) {
-  function label(a) {
-    if (a.typ === 'Ferien') {
-      if (a.halb && a.abzug === 'ÜZ-Konto') return labels.filter(function (l) { return /kompensation/i.test(l); })[0] || 'Kompensation Überstunden (frei)';
-      return labels.filter(function (l) { return /^ferien bezug$/i.test(l); })[0] || 'Ferien Bezug';
-    }
-    return a.art;
-  }
+/** Vorfüllung einer Woche aus den bewilligten Anträgen einer Person: [{auftrag, h[7]}].
+ *  pens = pensum_() der Person; ohne pens wie vor Version 5.6 (8 h, Mo–Fr). */
+function bewilligtFuer_(key, mon, labels, rows, pens) {
+  pens = pens || { stunden: SOLL_STUNDEN / 5, tage: [1, 2, 3, 4, 5] };
   var byLabel = {}, feiern = feiertage_(mon.getFullYear()).concat(feiertage_(mon.getFullYear() + 1));
   rows.forEach(function (r) {
     if (r.v[A.STATUS] !== 'bewilligt' || String(r.v[A.MA]).trim().toLowerCase() !== key) return;
-    var a = antragObj_(r), lb = label(a);
+    var a = antragObj_(r), lb = antragLabel_(a, labels);
     for (var i = 0; i < 5; i++) {
       var d = new Date(mon); d.setDate(d.getDate() + i);
       var iso = isoDate_(d);
-      if (iso < a.von || iso > a.bis || feiern.indexOf(iso) >= 0) continue;
+      if (iso < a.von || iso > a.bis || feiern.indexOf(iso) >= 0 || pens.tage.indexOf(i + 1) < 0) continue;
       if (!byLabel[lb]) byLabel[lb] = [0, 0, 0, 0, 0, 0, 0];
-      byLabel[lb][i] = a.halb ? SOLL_STUNDEN / 10 : SOLL_STUNDEN / 5;
+      byLabel[lb][i] = a.halb ? pens.stunden / 2 : pens.stunden;
     }
   });
   return Object.keys(byLabel).map(function (k) { return { auftrag: k, h: byLabel[k] }; });
@@ -1075,7 +1135,7 @@ function readMitarbeiter_() {
   for (var i = 1; i < v.length; i++) {
     var nr = trim_(v[i][0]), name = trim_(v[i][1]), kostenart = trim_(v[i][3]), pin = trim_(v[i][4]);
     if (name) map[name.toLowerCase()] = { nr: nr, name: name, email: trim_(v[i][2]), kostenart: kostenart,
-                                          pin: pin, rolle: trim_(v[i][5]) };
+                                          pin: pin, rolle: trim_(v[i][5]), tagSoll: trim_(v[i][6]), arbeitstage: trim_(v[i][7]) };
   }
   return map;
 }

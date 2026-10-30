@@ -87,7 +87,12 @@ Ersetzt die Papierformulare. Ablauf:
    der Mitarbeiter erhält eine Mail.
 4. Solange ein Antrag offen ist, kann ihn der Mitarbeiter zurückziehen.
 5. Bewilligte Tage erscheinen automatisch im Wochenrapport, wenn die Woche noch leer ist
-   (Ferien Bezug 8 h, halber Tag 4 h, halber Tag ab ÜZ-Konto als Kompensation).
+   (Ferien Bezug mit dem Tagessoll der Person, halber Tag die Hälfte, halber Tag ab ÜZ-Konto als Kompensation).
+   Tagessoll und Arbeitstage stehen im Reiter `Mitarbeiter`, Spalte G (leer = 8 h) und H (leer = Mo–Fr,
+   z. B. „Mo–Do“ oder „Di, Mi, Fr“).
+   Schickt jemand die Woche nicht ab, nimmt der **Messerli-Export** die bewilligten Ferien/Absenzen trotzdem
+   mit: nur Arbeitstage laut Pensum, ohne Feiertage, nur Tage ohne eigenen Eintrag der Person und nicht,
+   wenn *Ausgebucht (Sekretariat)* schon abgehakt ist. Die Meldung nach dem Export listet diese Tage auf.
 6. Lohnbuchhaltung/Sekretariat haken im Sheet die Spalten *Ausbezahlt (LB)* und
    *Ausgebucht (Sekretariat)* ab.
 
