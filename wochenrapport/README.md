@@ -90,6 +90,8 @@ Ersetzt die Papierformulare. Ablauf:
    (Ferien Bezug mit dem Tagessoll der Person, halber Tag die Hälfte, halber Tag ab ÜZ-Konto als Kompensation).
    Tagessoll und Arbeitstage stehen im Reiter `Mitarbeiter`, Spalte G (leer = 8 h) und H (leer = Mo–Fr,
    z. B. „Mo–Do“ oder „Di, Mi, Fr“).
+   Spalte I „Keine Zeiterfassung“ (x) blendet die Person im Reiter **Kontrolle** aus (z. B. ohne Rapportpflicht).
+   Die Kontrolle färbt eine Woche grün, sobald das Wochensoll laut G/H erreicht ist (z. B. 32 h bei Mo–Do).
    Schickt jemand die Woche nicht ab, nimmt der **Messerli-Export** die bewilligten Ferien/Absenzen trotzdem
    mit: nur Arbeitstage laut Pensum, ohne Feiertage, nur Tage ohne eigenen Eintrag der Person und nicht,
    wenn *Ausgebucht (Sekretariat)* schon abgehakt ist. Die Meldung nach dem Export listet diese Tage auf.
