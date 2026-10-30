@@ -813,9 +813,9 @@ function anfrageSaldoDetails(name, pin, text) {
     subject: 'Saldo-Anfrage: ' + rec.name,
     body: rec.name + ' (Nr. ' + (rec.nr || '–') + ') möchte Details zum Saldo.\n\n' +
           'Angezeigt in der App (Stand ' + (s.stand || '–') + '):\n' +
-          'Ferien: ' + f(s.ferien) + ' h\nÜberstunden total: ' + f(s.ueberstd == null && s.ueberzeit == null ? null :
-          Math.round(((s.ueberstd || 0) + (s.ueberzeit || 0)) * 100) / 100) + ' h' +
-          ' (Überstunden ' + f(s.ueberstd) + ' h + Überzeit ' + f(s.ueberzeit) + ' h)\n\n' +
+          'Ferien: ' + f(s.ferien) + ' h\nÜberstunden total: ' + f(s.ueberstd == null && s.ueberzeit == null && s.ueberstdB == null ? null :
+          Math.round(((s.ueberstd || 0) + (s.ueberstdB || 0) + (s.ueberzeit || 0)) * 100) / 100) + ' h' +
+          ' (Überstunden ' + f(s.ueberstd) + ' h + Überstunden B ' + f(s.ueberstdB) + ' h + Überzeit ' + f(s.ueberzeit) + ' h)\n\n' +
           'Nachricht: ' + (String(text || '').trim().slice(0, 500) || '(keine)') + '\n\n' +
           (/@/.test(rec.email || '') ? 'Antworten geht direkt an ' + rec.email + '.' : 'Keine E-Mail-Adresse hinterlegt.') +
           '\n\nDiese Nachricht wurde automatisch erstellt.'
@@ -826,18 +826,22 @@ function anfrageSaldoDetails(name, pin, text) {
 
 /* ---------- Salden (Reiter "Salden") ----------
  * Spalten: A Nr., B Name, C Ferien-Saldo (h), D Überstunden-Saldo (h), E Überzeit-Saldo (h), F Stand,
- * G Hinweis (z. B. "Noch nicht erfasst: KW41 (05.–09.10.)") – erscheint beim Mitarbeiter unter dem Saldo.
+ * G Hinweis (z. B. "Noch nicht erfasst: KW41 (05.–09.10.)") – erscheint beim Mitarbeiter unter dem Saldo,
+ * H Überstunden-B-Saldo (h) = Mehrstunden aus Wochen über 45 h (Messerli führt sie als eigenes Konto).
  * Wird wöchentlich aus der Jahresstundenkontrolle eingefügt (alles ersetzen ab Zeile 2). */
 var SALDEN_HEADER = ['Mitarbeiter Nr.', 'Name', 'Ferien-Saldo (h)', 'Überstunden-Saldo (h)', 'Überzeit-Saldo (h)', 'Stand',
-                     'Hinweis an Mitarbeiter (z. B. fehlende Wochen)'];
+                     'Hinweis an Mitarbeiter (z. B. fehlende Wochen)', 'Überstunden-B-Saldo (h)'];
 function saldenSheet_() {
   var ss = ss_(), sh = ss.getSheetByName(SHEET_SALDEN);
   if (!sh) {
     sh = ss.insertSheet(SHEET_SALDEN);
     sh.getRange(1, 1, 1, SALDEN_HEADER.length).setValues([SALDEN_HEADER]).setFontWeight('bold');
     sh.setFrozenRows(1);
-  } else if (!trim_(sh.getRange(1, SALDEN_HEADER.length).getValue())) {
-    sh.getRange(1, SALDEN_HEADER.length).setValue(SALDEN_HEADER[SALDEN_HEADER.length - 1]).setFontWeight('bold');
+  } else {
+    var head = sh.getRange(1, 1, 1, SALDEN_HEADER.length).getValues()[0];   // fehlende neue Spalten-Titel ergänzen
+    SALDEN_HEADER.forEach(function (t, i) {
+      if (!trim_(head[i])) sh.getRange(1, i + 1).setValue(t).setFontWeight('bold');
+    });
   }
   return sh;
 }
@@ -848,7 +852,7 @@ function saldenMap_() {
     var name = trim_(v[i][1]); if (!name) continue;
     var st = parseAnyDate_(v[i][5]), stand = st ? isoText_(st) : '';
     var rec = { ferien: num(v[i][2]), ueberstd: num(v[i][3]), ueberzeit: num(v[i][4]), stand: stand,
-                hinweis: trim_(v[i][6] || '').slice(0, 500) };
+                hinweis: trim_(v[i][6] || '').slice(0, 500), ueberstdB: num(v[i][7]) };
     map['n:' + name.toLowerCase()] = rec; if (trim_(v[i][0])) map['#' + trim_(v[i][0])] = rec;
   }
   return map;
@@ -863,7 +867,7 @@ function saldoFuer_(salden, ma, alle, ohneId) {
     if (a.id === ohneId || a.status !== 'bewilligt' || a.typ !== 'Ferien' || String(a.ma).trim().toLowerCase() !== key) return;
     if (!s.stand || a.bis > s.stand) bewilligt += a.tage;
   });
-  return { ferien: s.ferien, ueberstd: s.ueberstd, ueberzeit: s.ueberzeit, stand: s.stand ? chFromIso_(s.stand) : '',
+  return { ferien: s.ferien, ueberstd: s.ueberstd, ueberstdB: s.ueberstdB, ueberzeit: s.ueberzeit, stand: s.stand ? chFromIso_(s.stand) : '',
            bewilligtTage: bewilligt, hinweis: s.hinweis || '' };
 }
 

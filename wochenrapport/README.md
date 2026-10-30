@@ -92,9 +92,11 @@ Ersetzt die Papierformulare. Ablauf:
    *Ausgebucht (Sekretariat)* ab.
 
 Salden: Reiter **`Salden`** (A Nr., B Name, C Ferien-Saldo h, D Überstunden-Saldo h, E Überzeit-Saldo h,
-F Stand, G Hinweis an Mitarbeiter). Wird wöchentlich aus der Jahresstundenkontrolle (Messerli) neu eingefügt
+F Stand, G Hinweis an Mitarbeiter, H Überstunden-B-Saldo h). Wird wöchentlich aus der Jahresstundenkontrolle (Messerli) neu eingefügt
 (ab Zeile 2 alles ersetzen). Spalte G erscheint beim Mitarbeiter als gelber Hinweis unter dem Saldo, z. B.
 „Noch nicht erfasst: KW41 (05.–09.10.), KW42 (12.–16.10.)“ (auch die GL sieht ihn beim Antrag).
+Spalte H: Messerli verteilt die Mehrstunden pro Woche auf drei Konten (40–45 h Überstunden, 45–50 h
+Überstunden B, über 50 h Überzeit). In der App erscheint „Überstunden“ als Summe aller drei Konten.
 Die GL sieht bei jedem offenen Antrag den Saldo, bereits bewilligte, noch nicht gebuchte Ferientage und den
 Saldo nach diesem Antrag (Tage ≈ Stunden / 8). Mitarbeiter mit PIN sehen nach dem Login ihren eigenen Saldo
 (Reiter Woche und Ferien / Absenz), Mitarbeiter ohne PIN nicht.
