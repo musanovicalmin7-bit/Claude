@@ -467,7 +467,9 @@ function updateKontrolle() {
   var minMonday = null;
   for (var r = 1; r < data.length; r++) {
     var name = trim_(data[r][2]);
-    var monday = parseAnyDate_(data[r][3]) || parseAnyDate_(data[r][5]);
+    // Massgebend ist das Datum der Zeile (Spalte F). So wirkt eine Korrektur des Datums
+    // sofort, auch wenn "Woche vom" (Spalte D) noch die falsch gewählte Woche enthält.
+    var monday = parseAnyDate_(data[r][5]) || parseAnyDate_(data[r][3]);
     var stunden = Number(data[r][7]);
     if (!name || !monday || !(stunden > 0)) continue;
     monday = mondayOf_(monday);
@@ -570,6 +572,9 @@ function exportMesserli() {
     if (datum) datum = new Date(datum.getFullYear(), datum.getMonth(), datum.getDate(), 12, 0, 0);
     var auftrag = trim_(data[i][6]);
     var stunden = Number(data[i][7]);
+    if (!datum && auftrag && stunden > 0) {
+      warn['Datum nicht lesbar in Zeile ' + (i + 1) + ' (' + ma + ': "' + data[i][5] + '") – Zeile nicht exportiert'] = 1;
+    }
     if (!datum || !auftrag || !(stunden > 0)) continue;
     belegt[ma.toLowerCase() + '|' + fmtChDate_(datum)] = 1;
     if (maNr) belegt['#' + maNr + '|' + fmtChDate_(datum)] = 1;
@@ -1151,7 +1156,8 @@ function askDate_(ui, promptText) {
 
 /** "16.01.2026" -> Date (12:00 lokal, damit Zeitzonen keine Tagesverschiebung verursachen). */
 function parseChDate_(s) {
-  var m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(String(s || '').trim());
+  // Akzeptiert 29.10.2026 und von Hand getippte Varianten wie 29,10,2026 oder 29/10/2026.
+  var m = /^(\d{1,2})\s*[.,\/-]\s*(\d{1,2})\s*[.,\/-]\s*(\d{4})$/.exec(String(s || '').trim());
   if (!m) return null;
   var d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), 12, 0, 0);
   return isNaN(d.getTime()) ? null : d;

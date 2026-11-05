@@ -129,6 +129,11 @@ Zellen die eingereichten Stunden.
 - 🟨 Gelb = eingereicht, aber unter 40 h (prüfen)
 - 🟥 Rot = nichts eingereicht
 
+Die Woche einer Zeile ergibt sich aus dem **Datum** (Spalte F im Reiter `Rapporte`).
+Hat jemand die falsche Woche gewählt, genügt es, das Datum zu korrigieren und die
+Kontrolle neu aufzubauen. Ein Datum, das sich nicht lesen lässt (z. B. `29,10,2026`),
+wird ab Version 5.8 trotzdem erkannt; was gar nicht lesbar ist, meldet der Messerli-Export als Warnung.
+
 Damit siehst du auf einen Blick, wem du nachlaufen musst, bevor du den
 Messerli-Export machst.
 
