@@ -238,7 +238,7 @@
   <!-- Schritt 1: Name (nur beim ersten Mal) -->
   <section id="nameScreen" style="display:none">
     <h2>Wer bist du?</h2>
-    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.8 · Ferienanträge mit Freigabe</div>
+    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.9 · Ferienanträge mit Freigabe</div>
     <input id="nameSearch" placeholder="Name tippen …" autocomplete="off">
     <div id="nameList"></div>
   </section>
@@ -808,7 +808,8 @@
         SRV.pending[weekStart+"|"+(me.nr||"")+"|"+me.name]=null; flushServerSave();   // Entwurf auch zentral löschen (falls eine Sicherung noch unterwegs war)
         $("mainScreen").style.display="none"; $("sendbar").style.display="none";
         var a=new Date(weekStart+"T12:00:00");
-        $("doneText").textContent=res.count+" Buchung"+(res.count>1?"en":"")+" für die Woche ab "+chDate(a)+" gespeichert.";
+        $("doneText").textContent=res.count+" Buchung"+(res.count>1?"en":"")+" für die Woche ab "+chDate(a)+" gespeichert."+
+          (res.ersetzt?" Diese Woche war schon abgegeben – deine Korrektur ersetzt die erste Version.":"");
         var hasPdf=res.pdfUrl&&res.pdfUrl.indexOf("http")===0;
         $("pdfWrap").style.display=hasPdf?"":"none";
         if(hasPdf) $("pdfBtn").href=res.pdfUrl;

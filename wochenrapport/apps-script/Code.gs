@@ -24,6 +24,8 @@ var SHEET_ENTWURF    = 'Entwürfe';      // Zwischenstände der App (pro Mitarbe
 var SHEET_ANTRAG     = 'Anträge';
 var SHEET_SALDEN     = 'Salden';       // wöchentlich aus der Jahresstundenkontrolle (Messerli) eingefügt
 var SOLL_STUNDEN      = 40;
+// Spalten im Reiter "Rapporte" (0-basiert). J = Exportiert am, K = Status ("ersetzt …" = alte Version einer Woche).
+var R = { TS: 0, NR: 1, MA: 2, WOCHE: 3, RAPNR: 4, DATUM: 5, AUFTRAG: 6, STD: 7, PDF: 8, EXPORT: 9, STATUS: 10 };
 
 /**
  * Empfänger, der JEDEN abgesendeten Wochenrapport als PDF-Anhang erhält
@@ -110,7 +112,8 @@ function ss_() { return SpreadsheetApp.getActive(); }
 /** Legt fehlende Reiter mit Kopfzeilen an (idempotent). */
 function ensureSheets_() {
   var ss = ss_();
-  var rapHeader = ['Zeitstempel', 'Mitarbeiter Nr.', 'Mitarbeiter', 'Woche vom', 'Rapport Nr.', 'Datum', 'Auftrag Nr.', 'Stunden', 'Rapport-PDF (signiert)'];
+  var rapHeader = ['Zeitstempel', 'Mitarbeiter Nr.', 'Mitarbeiter', 'Woche vom', 'Rapport Nr.', 'Datum', 'Auftrag Nr.', 'Stunden', 'Rapport-PDF (signiert)',
+                   'Exportiert am', 'Status'];
   var rap = ss.getSheetByName(SHEET_RAPPORTE);
   if (!rap) rap = ss.insertSheet(SHEET_RAPPORTE);
   rap.getRange(1, 1, 1, rapHeader.length).setValues([rapHeader]).setFontWeight('bold');
@@ -270,18 +273,48 @@ function submitRapport(payload) {
     ensureSheets_();
     var sheet = ss_().getSheetByName(SHEET_RAPPORTE);
     var now = new Date();
+    var alt = ersetzeAlteAbgabe_(sheet, payload, now);   // gleiche Woche schon abgegeben? -> letzte Abgabe gilt
     var rows = entries.map(function (e) {
       return [now, String(payload.maNr || ''), String(payload.ma), String(payload.von || ''),
               String(payload.rapnr || ''), String(e.datum || ''), String(e.auftrag), Number(e.stunden),
-              pdfUrl];
+              pdfUrl, '', ''];
     });
     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
     deleteEntwurf_(payload.ma, payload.von);   // Zwischenstand ist mit der Abgabe erledigt
-    return { ok: true, count: rows.length,
+    return { ok: true, count: rows.length, ersetzt: alt.geloescht + alt.markiert,
              pdfUrl: (pdfFile ? pdfUrl : ''), mailedTo: mailInfo };
   } finally {
     lock.releaseLock();
   }
+}
+
+/** Montag (ISO) der Woche eines Datums/Werts, '' wenn unlesbar. */
+function wochenKey_(v) { var d = parseAnyDate_(v); return d ? isoDate_(mondayOf_(d)) : ''; }
+
+/**
+ * "Letzte Abgabe gilt": Hat die Person dieselbe Woche schon abgeschickt, wird die alte Version ersetzt.
+ * Noch nicht exportierte Zeilen werden gelöscht. Bereits exportierte Zeilen bleiben stehen und bekommen in
+ * Spalte K "ersetzt …" – der nächste Export bucht dann nur die Differenz und meldet, was in Messerli zu löschen ist.
+ */
+function ersetzeAlteAbgabe_(sheet, payload, now) {
+  var res = { geloescht: 0, markiert: 0 }, last = sheet.getLastRow();
+  if (last < 2) return res;
+  var week = wochenKey_(payload.von), nr = trim_(payload.maNr), name = trim_(payload.ma).toLowerCase();
+  if (!week) return res;
+  var v = sheet.getRange(2, 1, last - 1, R.STATUS + 1).getValues(), del = [], mark = [];
+  for (var i = 0; i < v.length; i++) {
+    var row = v[i];
+    if (trim_(row[R.STATUS])) continue;
+    var gleich = (nr && trim_(row[R.NR]) === nr) || trim_(row[R.MA]).toLowerCase() === name;
+    if (!gleich) continue;
+    if ((wochenKey_(row[R.WOCHE]) || wochenKey_(row[R.DATUM])) !== week) continue;
+    if (trim_(row[R.EXPORT])) mark.push(i + 2); else del.push(i + 2);
+  }
+  var txt = 'ersetzt ' + fmtChDate_(now) + ' (war exportiert)';
+  mark.forEach(function (r) { sheet.getRange(r, R.STATUS + 1).setValue(txt); });
+  for (var k = del.length - 1; k >= 0; k--) sheet.deleteRow(del[k]);
+  res.geloescht = del.length; res.markiert = mark.length;
+  return res;
 }
 
 /* ------------------------------------------------------------------
@@ -454,7 +487,7 @@ function updateKontrolle() {
   var employees = [], mitMap = readMitarbeiter_();
   Object.keys(mitMap).forEach(function (k) {
     var rec = mitMap[k], p = pensum_(rec);
-    if (!rec.keineZeit) employees.push({ nr: rec.nr, name: rec.name, soll: Math.round(p.stunden * p.tage.length * 100) / 100 });
+    if (!rec.keineZeit) employees.push({ nr: rec.nr, name: rec.name, pens: p });
   });
   if (!employees.length) {
     SpreadsheetApp.getUi().alert('Der Reiter "Mitarbeiter" ist leer – bitte zuerst die Namen eintragen.');
@@ -467,6 +500,7 @@ function updateKontrolle() {
   var minMonday = null;
   for (var r = 1; r < data.length; r++) {
     var name = trim_(data[r][2]);
+    if (trim_(data[r][R.STATUS])) continue;            // ersetzte alte Version einer Woche nicht mitzählen
     // Massgebend ist das Datum der Zeile (Spalte F). So wirkt eine Korrektur des Datums
     // sofort, auch wenn "Woche vom" (Spalte D) noch die falsch gewählte Woche enthält.
     var monday = parseAnyDate_(data[r][5]) || parseAnyDate_(data[r][3]);
@@ -499,7 +533,8 @@ function updateKontrolle() {
     mondays.forEach(function (m) {
       var h = wk[isoDate_(m)] || 0;
       row.push(h ? h : '');
-      color.push(h >= e.soll ? '#D9EAD3' : (h > 0 ? '#FFF2CC' : '#F4CCCC'));   // Soll laut Pensum (Spalte G/H)
+      var soll = wochenSoll_(e.pens, m);                // Soll laut Pensum (Spalte G/H), ohne Feiertage, Vortag 7/8
+      color.push(h >= soll ? '#D9EAD3' : (h > 0 ? '#FFF2CC' : '#F4CCCC'));
     });
     rows.push(row); colors.push(color);
   });
@@ -552,33 +587,85 @@ function parseAnyDate_(v) {
 function exportMesserli() {
   var ui = SpreadsheetApp.getUi();
   ensureSheets_();
+  var sh = ss_().getSheetByName(SHEET_RAPPORTE);
 
-  var von = askDate_(ui, 'Export von (TT.MM.JJJJ)'); if (von === null) return;
-  var bis = askDate_(ui, 'Export bis (TT.MM.JJJJ)'); if (bis === null) return;
+  var modus = ui.alert('Messerli-Export',
+    'Ja = alle noch nicht exportierten Rapporte (empfohlen, auch verspätete Wochen)\n' +
+    'Nein = Datumsbereich wählen (z. B. zum nochmaligen Erstellen)', ui.ButtonSet.YES_NO_CANCEL);
+  if (modus !== ui.Button.YES && modus !== ui.Button.NO) return;
+  var nurNeue = modus === ui.Button.YES;
+  var data = sh.getDataRange().getValues();
+  var props = PropertiesService.getScriptProperties();
+
+  if (nurNeue && !data.slice(1).some(function (r) { return trim_(r[R.EXPORT]); })) {
+    // Erste Verwendung: alles, was schon in Messerli ist, als exportiert markieren.
+    var stichtag = askDate_(ui, 'Erste Verwendung: Bis zu welchem Datum sind die Rapporte schon in Messerli? (TT.MM.JJJJ)\n' +
+                                'Diese Zeilen werden als exportiert markiert und nicht nochmals exportiert.');
+    if (stichtag === null) return;
+    var col = data.map(function (r, i) {
+      if (i === 0) return [r[R.EXPORT] || 'Exportiert am'];
+      var d = parseAnyDate_(r[R.DATUM]);
+      return [(!trim_(r[R.EXPORT]) && d && d <= stichtag) ? 'vor Version 5.9' : r[R.EXPORT]];
+    });
+    sh.getRange(1, R.EXPORT + 1, col.length, 1).setValues(col);
+    props.setProperty('antragExportBis', isoDate_(stichtag));
+    data = sh.getDataRange().getValues();
+  }
+  var von = null, bis = null;
+  if (!nurNeue) {
+    von = askDate_(ui, 'Export von (TT.MM.JJJJ)'); if (von === null) return;
+    bis = askDate_(ui, 'Export bis (TT.MM.JJJJ)'); if (bis === null) return;
+  }
 
   var kosten = readKostenarten_();
   var mit = readMitarbeiter_();
-
-  var data = ss_().getSheetByName(SHEET_RAPPORTE).getDataRange().getValues();
   var lines = ['Datum;Projektnummer;Mitarbeiter Nummer;Mitarbeiter;Bemerkung;Kostenart-Nummer;Dauer'];
-  var warn = {}, count = 0, belegt = {};
+  var warn = {}, count = 0, belegt = {}, markieren = [], minD = null, maxD = null;
+
+  // Alte, bereits exportierte Versionen von Wochen, die neu abgegeben wurden (Status "ersetzt …").
+  var alt = {}, altZeilen = {};
+  function pkey(row) { return (trim_(row[R.NR]) || trim_(row[R.MA]).toLowerCase()) + '|' + (wochenKey_(row[R.WOCHE]) || wochenKey_(row[R.DATUM])); }
+  function rkey(row) { var d = parseAnyDate_(row[R.DATUM]); return (d ? fmtChDate_(d) : '') + '|' + trim_(row[R.AUFTRAG]) + '|' + Number(row[R.STD]); }
+  for (var j = 1; j < data.length; j++) {
+    var st = trim_(data[j][R.STATUS]);
+    if (/^ersetzt/i.test(st) && trim_(data[j][R.EXPORT]) && !/abgeglichen/i.test(st)) {
+      var k = pkey(data[j]); (alt[k] = alt[k] || []).push(rkey(data[j])); (altZeilen[k] = altZeilen[k] || []).push(j);
+    }
+  }
+  var abgeglichen = {};
 
   for (var i = 1; i < data.length; i++) {
-    var maNr = trim_(data[i][1]), ma = trim_(data[i][2]);
+    var maNr = trim_(data[i][R.NR]), ma = trim_(data[i][R.MA]);
+    if (trim_(data[i][R.STATUS])) continue;                       // ersetzte alte Version
     // Sheets wandelt "11.08.2026" beim Schreiben oft in ein Date-Objekt um –
     // parseAnyDate_ akzeptiert beides; danach auf 12:00 normalisieren, damit
     // der Von/Bis-Vergleich (ebenfalls 12:00) den Randtag nicht ausschliesst.
-    var datum = parseAnyDate_(data[i][5]);
+    var datum = parseAnyDate_(data[i][R.DATUM]);
     if (datum) datum = new Date(datum.getFullYear(), datum.getMonth(), datum.getDate(), 12, 0, 0);
-    var auftrag = trim_(data[i][6]);
-    var stunden = Number(data[i][7]);
-    if (!datum && auftrag && stunden > 0) {
-      warn['Datum nicht lesbar in Zeile ' + (i + 1) + ' (' + ma + ': "' + data[i][5] + '") – Zeile nicht exportiert'] = 1;
+    var auftrag = trim_(data[i][R.AUFTRAG]);
+    var stunden = Number(data[i][R.STD]);
+    var offen = !trim_(data[i][R.EXPORT]);
+    if (!datum && auftrag && stunden > 0 && (offen || !nurNeue)) {
+      warn['Datum nicht lesbar in Zeile ' + (i + 1) + ' (' + ma + ': "' + data[i][R.DATUM] + '") – Zeile nicht exportiert'] = 1;
     }
     if (!datum || !auftrag || !(stunden > 0)) continue;
     belegt[ma.toLowerCase() + '|' + fmtChDate_(datum)] = 1;
     if (maNr) belegt['#' + maNr + '|' + fmtChDate_(datum)] = 1;
-    if (datum < von || datum > bis) continue;
+    if (nurNeue ? !offen : (datum < von || datum > bis)) continue;
+
+    if (nurNeue) {
+      var pk = pkey(data[i]);
+      if (alt[pk]) {                                               // Korrektur einer exportierten Woche: nur Differenz buchen
+        abgeglichen[pk] = 1;
+        var pos = alt[pk].indexOf(rkey(data[i]));
+        if (pos >= 0) { alt[pk].splice(pos, 1); markieren.push(i); continue; }
+      }
+    } else if (alt[pkey(data[i])]) {
+      warn[ma + ', Woche ' + chFromIso_(pkey(data[i]).split('|')[1]) + ': wurde nach dem Export korrigiert – Messerli prüfen (besser Export „Ja“ verwenden)'] = 1;
+    }
+    if (offen) markieren.push(i);
+    if (!minD || datum < minD) minD = datum;
+    if (!maxD || datum > maxD) maxD = datum;
 
     var rec = mit[ma.toLowerCase()] || {};
     if (!maNr) maNr = rec.nr || '';
@@ -597,19 +684,60 @@ function exportMesserli() {
     count++;
   }
 
-  var ergaenzt = ergaenzeBewilligte_(von, bis, kosten, mit, belegt, lines, warn);
+  // Was in der alten (exportierten) Version stand, in der neuen aber fehlt, muss in Messerli gelöscht werden.
+  var loeschen = [];
+  Object.keys(abgeglichen).forEach(function (pk) {
+    var name = trim_(data[altZeilen[pk][0]][R.MA]);
+    alt[pk].forEach(function (r) { var x = r.split('|'); loeschen.push(name + ': ' + x[0] + ' ' + x[1] + ' ' + x[2] + ' h'); });
+  });
+
+  if (nurNeue) { von = minD; bis = maxD; }
+  var ergaenzt = (von && bis) ? ergaenzeBewilligte_(von, bis, kosten, mit, belegt, lines, warn) : { zeilen: 0, liste: [], tage: [] };
   count += ergaenzt.zeilen;
 
-  if (!count) { ui.alert('Keine Buchungen im gewählten Zeitraum gefunden.'); return; }
+  if (!count && !loeschen.length) {
+    ui.alert(nurNeue ? 'Keine neuen Rapporte – alles ist bereits exportiert.' : 'Keine Buchungen im gewählten Zeitraum gefunden.');
+    return;
+  }
 
-  var name = 'Messerli-Import_' + fmtChDate_(von).replace(/\./g, '-') + '_bis_' + fmtChDate_(bis).replace(/\./g, '-') + '.csv';
-  var file = DriveApp.createFile(name, '﻿' + lines.join('\r\n'), 'text/csv');
+  var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm');
+  var name = nurNeue
+    ? 'Messerli-Import_neu_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd-MM-yyyy_HHmm') + '.csv'
+    : 'Messerli-Import_' + fmtChDate_(von).replace(/\./g, '-') + '_bis_' + fmtChDate_(bis).replace(/\./g, '-') + '.csv';
+  var file = DriveApp.createFile(name, '\ufeff' + lines.join('\r\n'), 'text/csv');
 
-  var msg = count + ' Buchungszeilen exportiert.\n\nDatei in Google Drive:\n' + file.getUrl();
+  // Exportierte Zeilen markieren (Spalte J), abgeglichene alte Versionen in Spalte K kennzeichnen.
+  if (markieren.length) {
+    var colJ = sh.getRange(1, R.EXPORT + 1, data.length, 1).getValues();
+    markieren.forEach(function (i) { if (!trim_(colJ[i][0])) colJ[i][0] = stamp; });
+    sh.getRange(1, R.EXPORT + 1, data.length, 1).setValues(colJ);
+  }
+  Object.keys(abgeglichen).forEach(function (pk) {
+    altZeilen[pk].forEach(function (j) { sh.getRange(j + 1, R.STATUS + 1).setValue(trim_(data[j][R.STATUS]) + ' – abgeglichen ' + stamp); });
+  });
+  merkeAntragTage_(ergaenzt.tage);
+
+  var msg = count + ' Buchungszeilen exportiert' + (nurNeue && minD ? ' (Daten vom ' + fmtChDate_(minD) + ' bis ' + fmtChDate_(maxD) + ')' : '') +
+            '.\n\nDatei in Google Drive:\n' + file.getUrl();
   if (ergaenzt.zeilen) msg += '\n\nAus bewilligten Anträgen ergänzt (Woche nicht abgeschickt):\n- ' + ergaenzt.liste.join('\n- ');
+  if (loeschen.length) msg += '\n\n✂ Korrigierte Wochen – diese Buchungen in Messerli von Hand LÖSCHEN:\n- ' + loeschen.join('\n- ');
   var warnKeys = Object.keys(warn);
   if (warnKeys.length) msg += '\n\n⚠ Bitte prüfen:\n- ' + warnKeys.join('\n- ');
   ui.alert('Messerli-Export erstellt', msg, ui.ButtonSet.OK);
+}
+
+/** Bereits exportierte Antragstage merken (Script-Properties je Antrag), damit sie nie doppelt kommen. */
+function antragExportiert_(id) {
+  var s = PropertiesService.getScriptProperties().getProperty('antragExp_' + id);
+  return s ? s.split(',') : [];
+}
+function merkeAntragTage_(tage) {
+  if (!tage || !tage.length) return;
+  var props = PropertiesService.getScriptProperties(), proId = {};
+  tage.forEach(function (t) { (proId[t.id] = proId[t.id] || []).push(t.ch); });
+  Object.keys(proId).forEach(function (id) {
+    props.setProperty('antragExp_' + id, antragExportiert_(id).concat(proId[id]).join(','));
+  });
 }
 
 /**
@@ -618,14 +746,15 @@ function exportMesserli() {
  * Eintrag hat, und nicht, wenn der Antrag im Sheet schon als "Ausgebucht (Sekretariat)" abgehakt ist.
  */
 function ergaenzeBewilligte_(von, bis, kosten, mit, belegt, lines, warn) {
-  var labels = Object.keys(kosten.absenz), proPerson = {}, zeilen = 0, feiern = {};
+  var labels = Object.keys(kosten.absenz), proPerson = {}, zeilen = 0, feiern = {}, tage = [];
+  var schonBis = PropertiesService.getScriptProperties().getProperty('antragExportBis') || '';
   antragRows_().forEach(function (r) {
     var ausgebucht = r.v[A.AUSGEBUCHT];
     if (r.v[A.STATUS] !== 'bewilligt' || ausgebucht === true || /^(ja|x|true)$/i.test(String(ausgebucht).trim())) return;
     var a = antragObj_(r), key = a.ma.trim().toLowerCase(), rec = mit[key] || {};
     var maNr = rec.nr || trim_(r.v[A.NR]), pens = pensum_(rec), lb = antragLabel_(a, labels), ka = kosten.absenz[lb];
     if (!ka) { warn['Kostenart fehlt für Antrag "' + lb + '" (' + a.ma + ') – nicht ergänzt'] = 1; return; }
-    var d = isoToDate_(a.von), end = isoToDate_(a.bis);
+    var d = isoToDate_(a.von), end = isoToDate_(a.bis), schon = antragExportiert_(a.id);
     if (!d || !end) return;
     if (d < von) d = new Date(von.getFullYear(), von.getMonth(), von.getDate(), 12, 0, 0);
     for (; d <= end && d <= bis; d.setDate(d.getDate() + 1)) {
@@ -633,8 +762,11 @@ function ergaenzeBewilligte_(von, bis, kosten, mit, belegt, lines, warn) {
       var ch = fmtChDate_(d), wd = d.getDay();
       if (pens.tage.indexOf(wd) < 0 || feiern[y].indexOf(isoDate_(d)) >= 0) continue;
       if (belegt[key + '|' + ch] || (maNr && belegt['#' + maNr + '|' + ch])) continue;
+      if (schon.indexOf(ch) >= 0 || (schonBis && isoDate_(d) <= schonBis)) continue;   // schon früher exportiert
       belegt[key + '|' + ch] = 1;
-      lines.push([ch, '', maNr, a.ma.trim(), lb, ka, toHHMM_(a.halb ? pens.stunden / 2 : pens.stunden)].map(csvCell_).join(';'));
+      var tagH = pens.stunden * vortagFaktor_(d);
+      lines.push([ch, '', maNr, a.ma.trim(), lb, ka, toHHMM_(a.halb ? tagH / 2 : tagH)].map(csvCell_).join(';'));
+      tage.push({ id: a.id, ch: ch });
       zeilen++;
       if (!/^\d+$/.test(String(ka))) warn['Kostenart "' + ka + '" (' + lb + ') nimmt der Messerli-Import evtl. nicht an – sonst von Hand buchen'] = 1;
       (proPerson[a.ma.trim()] = proPerson[a.ma.trim()] || []).push(ch.slice(0, 6));
@@ -643,7 +775,7 @@ function ergaenzeBewilligte_(von, bis, kosten, mit, belegt, lines, warn) {
   var liste = Object.keys(proPerson).sort().map(function (n) {
     return n + ': ' + proPerson[n].length + ' Tag' + (proPerson[n].length === 1 ? '' : 'e') + ' (' + proPerson[n].join(', ') + ')';
   });
-  return { zeilen: zeilen, liste: liste };
+  return { zeilen: zeilen, liste: liste, tage: tage };
 }
 
 /* ------------------------------------------------------------------
@@ -707,6 +839,27 @@ function feiertage_(year) {
   function off(n) { var x = new Date(ostern); x.setDate(x.getDate() + n); return isoDate_(x); }
   return [year + '-01-01', year + '-01-02', off(-2), off(1), year + '-05-01', off(39), off(50),
           year + '-08-01', year + '-12-25', year + '-12-26'];
+}
+/**
+ * Firmenregel: Am Arbeitstag vor einem Feiertag gilt 7 h statt 8 h Sollzeit (Faktor 7/8, Teilzeit anteilig).
+ * Gilt, wenn der Folgetag ein Feiertag an einem Werktag (Mo–Fr) ist und der Tag selbst kein Feiertag ist.
+ */
+function vortagFaktor_(d) {
+  var heute = isoDate_(d), n = new Date(d); n.setDate(n.getDate() + 1);
+  var wd = n.getDay();
+  if (wd < 1 || wd > 5) return 1;
+  if (feiertage_(d.getFullYear()).indexOf(heute) >= 0) return 1;
+  return feiertage_(n.getFullYear()).indexOf(isoDate_(n)) >= 0 ? 7 / 8 : 1;
+}
+/** Wochensoll einer Person: Arbeitstage laut Pensum ohne Feiertage, Vortag eines Feiertags mit 7/8. */
+function wochenSoll_(pens, monday) {
+  var s = 0;
+  for (var i = 0; i < 5; i++) {
+    var d = new Date(monday); d.setDate(d.getDate() + i); d.setHours(12, 0, 0, 0);
+    if (pens.tage.indexOf(i + 1) < 0 || feiertage_(d.getFullYear()).indexOf(isoDate_(d)) >= 0) continue;
+    s += pens.stunden * vortagFaktor_(d);
+  }
+  return Math.round(s * 100) / 100;
 }
 /** Arbeitstage Mo–Fr ohne Feiertage zwischen zwei ISO-Daten (inklusive). */
 function arbeitstage_(vonIso, bisIso) {
@@ -1033,7 +1186,8 @@ function bewilligtFuer_(key, mon, labels, rows, pens) {
       var iso = isoDate_(d);
       if (iso < a.von || iso > a.bis || feiern.indexOf(iso) >= 0 || pens.tage.indexOf(i + 1) < 0) continue;
       if (!byLabel[lb]) byLabel[lb] = [0, 0, 0, 0, 0, 0, 0];
-      byLabel[lb][i] = a.halb ? pens.stunden / 2 : pens.stunden;
+      var tagH = pens.stunden * vortagFaktor_(d);
+      byLabel[lb][i] = a.halb ? tagH / 2 : tagH;
     }
   });
   return Object.keys(byLabel).map(function (k) { return { auftrag: k, h: byLabel[k] }; });

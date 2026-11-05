@@ -151,8 +151,25 @@ Datum;Projektnummer;Mitarbeiter Nummer;Mitarbeiter;Bemerkung;Kostenart-Nummer;Da
 - Projektnummern, Mitarbeiternummern und Kostenartnummern müssen **exakt** den
   Nummern aus MesserliPROJEKT entsprechen.
 
-Im Sheet: Menü **Wochenrapport → Messerli-Export erstellen …**, Zeitraum eingeben
-(von/bis als TT.MM.JJJJ) – die CSV wird im Drive abgelegt und der Link angezeigt.
+Im Sheet: Menü **Wochenrapport → Messerli-Export erstellen …** – die CSV wird im Drive abgelegt und der Link angezeigt.
+
+Ab Version 5.9 gibt es zwei Arten:
+
+- **Ja = alle noch nicht exportierten Rapporte (empfohlen).** Jede exportierte Zeile bekommt im Reiter
+  `Rapporte` in Spalte J „Exportiert am“ einen Zeitstempel. Der nächste Export nimmt nur Zeilen ohne
+  Zeitstempel – verspätet abgegebene Wochen (Nachzügler) gehen so nicht mehr verloren, und nichts wird doppelt exportiert.
+  Beim ersten Mal fragt der Export, bis zu welchem Datum die Rapporte schon in Messerli sind, und markiert diese.
+- **Nein = Datumsbereich** (von/bis als TT.MM.JJJJ), z. B. um eine Datei nochmals zu erstellen.
+
+**Letzte Abgabe gilt:** Schickt jemand dieselbe Woche nochmals ab, ersetzt die neue Abgabe die alte.
+Noch nicht exportierte alte Zeilen werden gelöscht. War die alte Version schon exportiert, bleibt sie mit
+Status „ersetzt …“ (Spalte K) stehen; der nächste Export bucht nur die Differenz und listet auf, welche
+Buchungen in Messerli von Hand zu löschen sind. Die App zeigt dem Mitarbeiter einen entsprechenden Hinweis.
+
+**Vortag Feiertag:** Am Arbeitstag vor einem Feiertag gilt 7 h statt 8 h Sollzeit (Teilzeit anteilig). Das wirkt
+bei bewilligten Ferien/Absenzen (Vorbefüllung und Export) und im Wochensoll der Kontrolle; Feiertage selbst
+zählen dort nicht zum Soll.
+
 Dabei gilt:
 
 - `Dauer` wird aus den Dezimalstunden umgerechnet (8.5 → `08:30`).
