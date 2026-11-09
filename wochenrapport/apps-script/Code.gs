@@ -273,7 +273,7 @@ function submitRapport(payload) {
     ensureSheets_();
     var sheet = ss_().getSheetByName(SHEET_RAPPORTE);
     var now = new Date();
-    var alt = ersetzeAlteAbgabe_(sheet, payload, now);   // gleiche Woche schon abgegeben? -> letzte Abgabe gilt
+    var alt = ersetzeAlteAbgabe_(sheet, payload, now, entries);   // gleiche Woche schon abgegeben? -> letzte Abgabe gilt (ausser reiner Nachtrag anderer Tage)
     var rows = entries.map(function (e) {
       return [now, String(payload.maNr || ''), String(payload.ma), String(payload.von || ''),
               String(payload.rapnr || ''), String(e.datum || ''), String(e.auftrag), Number(e.stunden),
@@ -281,7 +281,7 @@ function submitRapport(payload) {
     });
     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
     deleteEntwurf_(payload.ma, payload.von);   // Zwischenstand ist mit der Abgabe erledigt
-    return { ok: true, count: rows.length, ersetzt: alt.geloescht + alt.markiert,
+    return { ok: true, count: rows.length, ersetzt: alt.geloescht + alt.markiert, nachtrag: alt.nachtrag,
              pdfUrl: (pdfFile ? pdfUrl : ''), mailedTo: mailInfo };
   } finally {
     lock.releaseLock();
@@ -295,21 +295,31 @@ function wochenKey_(v) { var d = parseAnyDate_(v); return d ? isoDate_(mondayOf_
  * "Letzte Abgabe gilt": Hat die Person dieselbe Woche schon abgeschickt, wird die alte Version ersetzt.
  * Noch nicht exportierte Zeilen werden gelöscht. Bereits exportierte Zeilen bleiben stehen und bekommen in
  * Spalte K "ersetzt …" – der nächste Export bucht dann nur die Differenz und meldet, was in Messerli zu löschen ist.
+ * Ab 5.10: Ersetzt wird nur, wenn die neue Abgabe mindestens einen Tag der alten enthält. Enthält sie nur
+ * andere Tage (z. B. Samstag nachgereicht), ist sie ein Nachtrag und die alte Abgabe bleibt stehen.
  */
-function ersetzeAlteAbgabe_(sheet, payload, now) {
-  var res = { geloescht: 0, markiert: 0 }, last = sheet.getLastRow();
+function tagKey_(v) { var d = parseAnyDate_(v); return d ? isoDate_(d) : ''; }
+
+function ersetzeAlteAbgabe_(sheet, payload, now, entries) {
+  var res = { geloescht: 0, markiert: 0, nachtrag: false }, last = sheet.getLastRow();
   if (last < 2) return res;
   var week = wochenKey_(payload.von), nr = trim_(payload.maNr), name = trim_(payload.ma).toLowerCase();
   if (!week) return res;
-  var v = sheet.getRange(2, 1, last - 1, R.STATUS + 1).getValues(), del = [], mark = [];
+  var neueTage = {};
+  (entries || payload.entries || []).forEach(function (e) { var k = tagKey_(e && e.datum); if (k) neueTage[k] = 1; });
+  var v = sheet.getRange(2, 1, last - 1, R.STATUS + 1).getValues(), del = [], mark = [], ueberlappt = false;
   for (var i = 0; i < v.length; i++) {
     var row = v[i];
     if (trim_(row[R.STATUS])) continue;
     var gleich = (nr && trim_(row[R.NR]) === nr) || trim_(row[R.MA]).toLowerCase() === name;
     if (!gleich) continue;
     if ((wochenKey_(row[R.WOCHE]) || wochenKey_(row[R.DATUM])) !== week) continue;
+    var tk = tagKey_(row[R.DATUM]);
+    if (!tk || neueTage[tk]) ueberlappt = true;
     if (trim_(row[R.EXPORT])) mark.push(i + 2); else del.push(i + 2);
   }
+  // Keine gemeinsamen Tage -> Nachtrag (z. B. Samstag nachgereicht): alte Abgabe bleibt unverändert.
+  if ((del.length || mark.length) && !ueberlappt) { res.nachtrag = true; return res; }
   var txt = 'ersetzt ' + fmtChDate_(now) + ' (war exportiert)';
   mark.forEach(function (r) { sheet.getRange(r, R.STATUS + 1).setValue(txt); });
   for (var k = del.length - 1; k >= 0; k--) sheet.deleteRow(del[k]);

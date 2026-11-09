@@ -165,6 +165,9 @@ Ab Version 5.9 gibt es zwei Arten:
 Noch nicht exportierte alte Zeilen werden gelöscht. War die alte Version schon exportiert, bleibt sie mit
 Status „ersetzt …“ (Spalte K) stehen; der nächste Export bucht nur die Differenz und listet auf, welche
 Buchungen in Messerli von Hand zu löschen sind. Die App zeigt dem Mitarbeiter einen entsprechenden Hinweis.
+Ab Version 5.10 gilt das nur, wenn die neue Abgabe mindestens einen Tag der alten enthält. Reicht jemand nur
+andere Tage nach (z. B. den Samstag zu einer schon abgegebenen Mo–Fr-Woche), wird die neue Abgabe als
+**Nachtrag** ergänzt und die alte bleibt stehen.
 
 **Vortag Feiertag:** Am Arbeitstag vor einem Feiertag gilt 7 h statt 8 h Sollzeit (Teilzeit anteilig). Das wirkt
 bei bewilligten Ferien/Absenzen (Vorbefüllung und Export) und im Wochensoll der Kontrolle; Feiertage selbst
