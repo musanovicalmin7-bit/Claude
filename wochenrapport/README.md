@@ -172,6 +172,8 @@ andere Tage nach (z. B. den Samstag zu einer schon abgegebenen Mo–Fr-Woche), w
 **Sonn- und Feiertagsarbeit (ab 5.11):** Arbeitsstunden an Sonntagen und Feiertagen bekommen 100 % Zeitzuschlag
 (GAV Art. 25): Der Export schreibt die doppelte Dauer in die CSV (4.5 h → `09:00`) und listet diese Zeilen am Ende auf.
 Absenzen sind davon nicht betroffen.
+**Samstagsarbeit** wird nicht automatisch verrechnet: Der Export listet alle Samstagszeilen (mit PDF-Link) auf,
+der Zuschlag (ab 13 Uhr 25 %, vor 6 Uhr 50 %) wird von Hand geprüft und gebucht.
 
 **Vortag Feiertag:** Am Arbeitstag vor einem Feiertag gilt 7 h statt 8 h Sollzeit (Teilzeit anteilig). Das wirkt
 bei bewilligten Ferien/Absenzen (Vorbefüllung und Export) und im Wochensoll der Kontrolle; Feiertage selbst

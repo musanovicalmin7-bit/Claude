@@ -630,7 +630,7 @@ function exportMesserli() {
   var kosten = readKostenarten_();
   var mit = readMitarbeiter_();
   var lines = ['Datum;Projektnummer;Mitarbeiter Nummer;Mitarbeiter;Bemerkung;Kostenart-Nummer;Dauer'];
-  var warn = {}, count = 0, belegt = {}, markieren = [], minD = null, maxD = null, zuschlag = [];
+  var warn = {}, count = 0, belegt = {}, markieren = [], minD = null, maxD = null, zuschlag = [], samstag = [];
 
   // Alte, bereits exportierte Versionen von Wochen, die neu abgegeben wurden (Status "ersetzt …").
   var alt = {}, altZeilen = {};
@@ -694,6 +694,8 @@ function exportMesserli() {
     if (!istAbsenz && zuschlagFaktor_(datum) > 1) {
       dauer = stunden * zuschlagFaktor_(datum);
       zuschlag.push(ma + ': ' + fmtChDate_(datum) + ' ' + stunden + ' h → ' + toHHMM_(dauer));
+    } else if (!istAbsenz && datum.getDay() === 6) {
+      samstag.push(ma + ': ' + fmtChDate_(datum) + ' ' + stunden + ' h (' + projektnummer + ')' + (trim_(data[i][R.PDF]).indexOf('http') === 0 ? ' – PDF: ' + trim_(data[i][R.PDF]) : ''));
     }
     lines.push([fmtChDate_(datum), projektnummer, maNr, ma, bemerkung, kostenart, toHHMM_(dauer)]
       .map(csvCell_).join(';'));
@@ -739,6 +741,10 @@ function exportMesserli() {
   var msg = count + ' Buchungszeilen exportiert' + (nurNeue && minD ? ' (Daten vom ' + fmtChDate_(minD) + ' bis ' + fmtChDate_(maxD) + ')' : '') +
             '.\n\nDatei in Google Drive:\n' + file.getUrl();
   if (ergaenzt.zeilen) msg += '\n\nAus bewilligten Anträgen ergänzt (Woche nicht abgeschickt):\n- ' + ergaenzt.liste.join('\n- ');
+  if (samstag.length) {
+    var sa = {}; samstag.forEach(function (x) { sa[x] = 1; });
+    msg += '\n\n🔎 Samstagsarbeit – Zuschlag von Hand prüfen (GAV Art. 25: ab 13 Uhr 25 %, vor 6 Uhr 50 %; Beginn/Ende im PDF):\n- ' + Object.keys(sa).join('\n- ');
+  }
   if (zuschlag.length) msg += '\n\nSonn-/Feiertagsarbeit mit 100 % Zuschlag (Dauer verdoppelt):\n- ' + zuschlag.join('\n- ');
   if (loeschen.length) msg += '\n\n✂ Korrigierte Wochen – diese Buchungen in Messerli von Hand LÖSCHEN:\n- ' + loeschen.join('\n- ');
   var warnKeys = Object.keys(warn);
