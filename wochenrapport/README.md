@@ -169,6 +169,10 @@ Ab Version 5.10 gilt das nur, wenn die neue Abgabe mindestens einen Tag der alte
 andere Tage nach (z. B. den Samstag zu einer schon abgegebenen Mo–Fr-Woche), wird die neue Abgabe als
 **Nachtrag** ergänzt und die alte bleibt stehen.
 
+**Sonn- und Feiertagsarbeit (ab 5.11):** Arbeitsstunden an Sonntagen und Feiertagen bekommen 100 % Zeitzuschlag
+(GAV Art. 25): Der Export schreibt die doppelte Dauer in die CSV (4.5 h → `09:00`) und listet diese Zeilen am Ende auf.
+Absenzen sind davon nicht betroffen.
+
 **Vortag Feiertag:** Am Arbeitstag vor einem Feiertag gilt 7 h statt 8 h Sollzeit (Teilzeit anteilig). Das wirkt
 bei bewilligten Ferien/Absenzen (Vorbefüllung und Export) und im Wochensoll der Kontrolle; Feiertage selbst
 zählen dort nicht zum Soll.

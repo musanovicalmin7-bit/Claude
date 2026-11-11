@@ -630,7 +630,7 @@ function exportMesserli() {
   var kosten = readKostenarten_();
   var mit = readMitarbeiter_();
   var lines = ['Datum;Projektnummer;Mitarbeiter Nummer;Mitarbeiter;Bemerkung;Kostenart-Nummer;Dauer'];
-  var warn = {}, count = 0, belegt = {}, markieren = [], minD = null, maxD = null;
+  var warn = {}, count = 0, belegt = {}, markieren = [], minD = null, maxD = null, zuschlag = [];
 
   // Alte, bereits exportierte Versionen von Wochen, die neu abgegeben wurden (Status "ersetzt …").
   var alt = {}, altZeilen = {};
@@ -689,7 +689,13 @@ function exportMesserli() {
     var kostenart = istAbsenz ? kosten.absenz[auftrag] : (rec.kostenart || kosten.arbeit);
     if (!kostenart) warn['Kostenart fehlt für: ' + (istAbsenz ? auftrag : ('Arbeit bei ' + ma))] = 1;
 
-    lines.push([fmtChDate_(datum), projektnummer, maNr, ma, bemerkung, kostenart, toHHMM_(stunden)]
+    // Sonn- und Feiertagsarbeit: 100 % Zeitzuschlag (GAV Art. 25) – Dauer im Export verdoppelt.
+    var dauer = stunden;
+    if (!istAbsenz && zuschlagFaktor_(datum) > 1) {
+      dauer = stunden * zuschlagFaktor_(datum);
+      zuschlag.push(ma + ': ' + fmtChDate_(datum) + ' ' + stunden + ' h → ' + toHHMM_(dauer));
+    }
+    lines.push([fmtChDate_(datum), projektnummer, maNr, ma, bemerkung, kostenart, toHHMM_(dauer)]
       .map(csvCell_).join(';'));
     count++;
   }
@@ -698,7 +704,10 @@ function exportMesserli() {
   var loeschen = [];
   Object.keys(abgeglichen).forEach(function (pk) {
     var name = trim_(data[altZeilen[pk][0]][R.MA]);
-    alt[pk].forEach(function (r) { var x = r.split('|'); loeschen.push(name + ': ' + x[0] + ' ' + x[1] + ' ' + x[2] + ' h'); });
+    alt[pk].forEach(function (r) {
+      var x = r.split('|'), f = zuschlagFaktor_(parseAnyDate_(x[0]));
+      loeschen.push(name + ': ' + x[0] + ' ' + x[1] + ' ' + x[2] + ' h' + (f > 1 && !kosten.absenz.hasOwnProperty(x[1]) ? ' (in Messerli ' + toHHMM_(Number(x[2]) * f) + ' mit Zuschlag)' : ''));
+    });
   });
 
   if (nurNeue) { von = minD; bis = maxD; }
@@ -730,6 +739,7 @@ function exportMesserli() {
   var msg = count + ' Buchungszeilen exportiert' + (nurNeue && minD ? ' (Daten vom ' + fmtChDate_(minD) + ' bis ' + fmtChDate_(maxD) + ')' : '') +
             '.\n\nDatei in Google Drive:\n' + file.getUrl();
   if (ergaenzt.zeilen) msg += '\n\nAus bewilligten Anträgen ergänzt (Woche nicht abgeschickt):\n- ' + ergaenzt.liste.join('\n- ');
+  if (zuschlag.length) msg += '\n\nSonn-/Feiertagsarbeit mit 100 % Zuschlag (Dauer verdoppelt):\n- ' + zuschlag.join('\n- ');
   if (loeschen.length) msg += '\n\n✂ Korrigierte Wochen – diese Buchungen in Messerli von Hand LÖSCHEN:\n- ' + loeschen.join('\n- ');
   var warnKeys = Object.keys(warn);
   if (warnKeys.length) msg += '\n\n⚠ Bitte prüfen:\n- ' + warnKeys.join('\n- ');
@@ -849,6 +859,12 @@ function feiertage_(year) {
   function off(n) { var x = new Date(ostern); x.setDate(x.getDate() + n); return isoDate_(x); }
   return [year + '-01-01', year + '-01-02', off(-2), off(1), year + '-05-01', off(39), off(50),
           year + '-08-01', year + '-12-25', year + '-12-26'];
+}
+/** Zeitzuschlag-Faktor für Arbeit: Sonntag und Feiertag 100 % (Faktor 2), sonst 1. */
+function zuschlagFaktor_(d) {
+  if (!d) return 1;
+  if (d.getDay() === 0) return 2;
+  return feiertage_(d.getFullYear()).indexOf(isoDate_(d)) >= 0 ? 2 : 1;
 }
 /**
  * Firmenregel: Am Arbeitstag vor einem Feiertag gilt 7 h statt 8 h Sollzeit (Faktor 7/8, Teilzeit anteilig).
