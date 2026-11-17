@@ -885,7 +885,10 @@ function arbeitstage_(vonIso, bisIso) {
 }
 /** Pensum aus dem Reiter Mitarbeiter: Stunden pro Arbeitstag und Wochentage (1 = Mo … 5 = Fr). */
 function pensum_(rec) {
-  var h = Number(String((rec || {}).tagSoll || '').replace(',', '.'));
+  var raw = (rec || {}).tagSollRaw;
+  // Sheets macht aus "4.8" gern ein Datum (4. August) – dann Tag.Monat als Dezimalzahl lesen (4.8, 7.2, 5.6, 6.4).
+  var h = (raw instanceof Date && !isNaN(raw.getTime())) ? raw.getDate() + (raw.getMonth() + 1) / 10
+        : Number(String((rec || {}).tagSoll || '').replace(',', '.'));
   if (!(h > 0 && h <= 12)) h = SOLL_STUNDEN / 5;
   var txt = String((rec || {}).arbeitstage || '').toLowerCase().replace(/\s*[–-]\s*/g, '–'), tage = [];
   var namen = ['mo', 'di', 'mi', 'do', 'fr'];
@@ -1304,7 +1307,7 @@ function readMitarbeiter_() {
   for (var i = 1; i < v.length; i++) {
     var nr = trim_(v[i][0]), name = trim_(v[i][1]), kostenart = trim_(v[i][3]), pin = trim_(v[i][4]);
     if (name) map[name.toLowerCase()] = { nr: nr, name: name, email: trim_(v[i][2]), kostenart: kostenart,
-                                          pin: pin, rolle: trim_(v[i][5]), tagSoll: trim_(v[i][6]), arbeitstage: trim_(v[i][7]),
+                                          pin: pin, rolle: trim_(v[i][5]), tagSoll: trim_(v[i][6]), tagSollRaw: v[i][6], arbeitstage: trim_(v[i][7]),
                                           keineZeit: /^(x|ja|true)$/i.test(trim_(v[i][8])) };
   }
   return map;
