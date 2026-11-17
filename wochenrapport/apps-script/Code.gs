@@ -1100,7 +1100,7 @@ function saldoFuer_(salden, ma, alle, ohneId) {
     if (!s.stand || a.bis > s.stand) bewilligt += a.tage;
   });
   return { ferien: s.ferien, ueberstd: s.ueberstd, ueberstdB: s.ueberstdB, ueberzeit: s.ueberzeit, stand: s.stand ? chFromIso_(s.stand) : '',
-           bewilligtTage: bewilligt, hinweis: s.hinweis || '' };
+           bewilligtTage: bewilligt, hinweis: s.hinweis || '', tagH: pensum_(rec).stunden };   // Tagessoll (Teilzeit) für die Umrechnung h ↔ Tage
 }
 
 /** Offenen Antrag zurückziehen (nur eigene; bewilligte nur über das Büro). */
