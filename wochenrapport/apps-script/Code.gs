@@ -802,9 +802,10 @@ function ergaenzeBewilligte_(von, bis, kosten, mit, belegt, lines, warn) {
 var ANTRAG_HEADER = ['ID', 'Eingang', 'Typ', 'Mitarbeiter Nr.', 'Mitarbeiter', 'Art / Grund', 'Von', 'Bis',
                      'Tage', 'Halber Tag', 'Abzug (halber Tag)', 'Bemerkung', 'Aufgebot abgegeben',
                      'Soldmeldekarte abgegeben', 'Status', 'Entscheid am', 'Entscheid von', 'Kommentar GL',
-                     'Ausbezahlt (LB)', 'Ausgebucht (Sekretariat)'];
+                     'Ausbezahlt (LB)', 'Ausgebucht (Sekretariat)', 'Im Dispo eingetragen', 'Aus Dispo gelöscht'];
 var A = { ID: 0, EINGANG: 1, TYP: 2, NR: 3, MA: 4, ART: 5, VON: 6, BIS: 7, TAGE: 8, HALB: 9, ABZUG: 10,
-          BEM: 11, AUFGEBOT: 12, SOLD: 13, STATUS: 14, ENT_AM: 15, ENT_VON: 16, KOMMENTAR: 17, AUSGEBUCHT: 19 };
+          BEM: 11, AUFGEBOT: 12, SOLD: 13, STATUS: 14, ENT_AM: 15, ENT_VON: 16, KOMMENTAR: 17, AUSGEBUCHT: 19,
+          DISPO: 20, DISPO_WEG: 21 };
 
 function antragSheet_() {
   var ss = ss_(), sh = ss.getSheetByName(SHEET_ANTRAG);
@@ -1478,11 +1479,55 @@ function getBewilligteUebersicht(name, pin) {
     if (!(k in cache)) cache[k] = saldoFuer_(salden, a.ma, all, '');
     var sal = cache[k];
     out.push({ id: a.id, ma: a.ma, typ: a.typ, art: a.art, von: a.von, bis: a.bis, tage: a.tage, halb: a.halb,
-               bem: a.bem, entVon: a.entVon, saldoNach: (a.typ === 'Ferien' && sal && sal.saldoNachPlan) ? sal.saldoNachPlan : null,
+               bem: a.bem, entVon: a.entVon, dispo: dispoText_(r.v[A.DISPO]), saldoNach: (a.typ === 'Ferien' && sal && sal.saldoNachPlan) ? sal.saldoNachPlan : null,
                tagH: sal ? sal.tagH : 8 });
   });
   out.sort(function (x, y) { return x.von < y.von ? -1 : x.von > y.von ? 1 : (x.ma < y.ma ? -1 : 1); });
   return out;
+}
+
+/* ================= Dispo-Liste (GL) ================= */
+function dispoText_(v) { return v instanceof Date ? fmtChDate_(v) : trim_(v); }
+
+/**
+ * Was im Messerli-Dispo / Outlook noch zu tun ist:
+ *  neu      = bewilligt, endet heute oder später, Spalte U "Im Dispo eingetragen" leer
+ *  loeschen = storniert, war eingetragen (U gefüllt), Spalte V "Aus Dispo gelöscht" leer
+ */
+function getDispoListe(name, pin) {
+  var chk = requirePin_(name, pin);
+  if (!chk.gl) throw new Error('Keine Berechtigung (nur GL).');
+  var heute = isoDate_(new Date()), neu = [], loeschen = [];
+  antragRows_().forEach(function (r) {
+    var st = String(r.v[A.STATUS]), ein = dispoText_(r.v[A.DISPO]), weg = dispoText_(r.v[A.DISPO_WEG]);
+    var a = antragObj_(r);
+    var o = { id: a.id, ma: a.ma, typ: a.typ, art: a.art, von: a.von, bis: a.bis, tage: a.tage, halb: a.halb,
+              bem: a.bem, entVon: a.entVon, kommentar: a.kommentar, dispo: ein };
+    if (st === 'bewilligt' && !ein && a.bis >= heute) neu.push(o);
+    else if (st === 'storniert' && ein && !weg) loeschen.push(o);
+  });
+  function sort(x, y) { return x.von < y.von ? -1 : x.von > y.von ? 1 : (x.ma < y.ma ? -1 : 1); }
+  return { neu: neu.sort(sort), loeschen: loeschen.sort(sort) };
+}
+
+/** GL hakt ab: act 'ein' = im Dispo eingetragen, 'weg' = aus Dispo gelöscht (nach Storno). */
+function setDispo(name, pin, id, act) {
+  var chk = requirePin_(name, pin);
+  if (!chk.gl) throw new Error('Keine Berechtigung (nur GL).');
+  if (act !== 'ein' && act !== 'weg') throw new Error('Unbekannte Aktion.');
+  var lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    var sh = antragSheet_();
+    var kopf = sh.getRange(1, A.DISPO + 1, 1, 2).getValues()[0];
+    if (!trim_(kopf[0]) || !trim_(kopf[1]))
+      sh.getRange(1, A.DISPO + 1, 1, 2).setValues([[ANTRAG_HEADER[A.DISPO], ANTRAG_HEADER[A.DISPO_WEG]]]).setFontWeight('bold');
+    var r = antragRows_().filter(function (x) { return String(x.v[A.ID]) === String(id); })[0];
+    if (!r) throw new Error('Antrag nicht gefunden.');
+    var gl = (readMitarbeiter_()[String(name).trim().toLowerCase()] || {}).name || name;
+    var text = fmtChDate_(new Date()) + ' ' + gl;
+    sh.getRange(r.row, (act === 'ein' ? A.DISPO : A.DISPO_WEG) + 1).setNumberFormat('@').setValue(text);
+  } finally { lock.releaseLock(); }
+  return true;
 }
 
 /** GL storniert einen bewilligten Antrag (z. B. verschoben). Kommentar Pflicht, Mail an den Mitarbeiter. */

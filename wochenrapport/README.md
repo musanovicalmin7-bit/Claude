@@ -106,6 +106,10 @@ Ersetzt die Papierformulare. Ablauf:
    Ab 5.15: Menü **Wochenrapport → Ferienplan als Excel** baut den Plan neu und legt `Ferienplan_JJJJ-MM-TT.xlsx`
    im Drive-Ordner `Ferienplan Export` ab (nur dieser Reiter, also ohne PINs) und zeigt einen Download-Link.
    Beim ersten Aufruf fragt Google einmal nach der Berechtigung für „externe Verbindungen“ (Export als Excel).
+   Ab 5.16: In der Freigabe zeigt der Block **„Fürs Dispo / Outlook“**, was im Messerli-Dispo noch zu tun ist:
+   bewilligte Abwesenheiten ab heute, die noch nicht eingetragen sind (Knopf „✓ Im Dispo eingetragen“), und stornierte,
+   die schon eingetragen waren (Knopf „✓ Aus Dispo gelöscht“). Gespeichert im Reiter `Anträge`, Spalten U und V
+   (Datum + Name; von Hand leeren = wieder offen).
    Tagessoll und Arbeitstage stehen im Reiter `Mitarbeiter`, Spalte G (leer = 8 h) und H (leer = Mo–Fr,
    z. B. „Mo–Do“ oder „Di, Mi, Fr“).
    Spalte I „Keine Zeiterfassung“ (x) blendet die Person im Reiter **Kontrolle** aus (z. B. ohne Rapportpflicht).

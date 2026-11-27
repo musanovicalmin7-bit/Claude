@@ -240,7 +240,7 @@
   <!-- Schritt 1: Name (nur beim ersten Mal) -->
   <section id="nameScreen" style="display:none">
     <h2>Wer bist du?</h2>
-    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.15 · Ferienanträge mit Freigabe</div>
+    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.16 · Ferienanträge mit Freigabe</div>
     <input id="nameSearch" placeholder="Name tippen …" autocomplete="off">
     <div id="nameList"></div>
   </section>
@@ -302,6 +302,8 @@
   <section id="freigabeScreen" style="display:none">
     <div class="block-label">Offen</div>
     <div class="alist" id="frOffen"><div class="acempty">Lädt …</div></div>
+    <div class="block-label">Fürs Dispo / Outlook <span id="dispoCnt"></span></div>
+    <div class="alist" id="frDispo"><div class="acempty">Lädt …</div></div>
     <div class="block-label">Bewilligte Abwesenheiten (ab heute) <label style="font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px"><input type="checkbox" id="frNurFerien" checked> nur Ferien</label></div>
     <div class="alist" id="frBewilligt"><div class="acempty">Lädt …</div></div>
     <div class="block-label">Entschieden (letzte 30 Tage)</div>
@@ -1010,7 +1012,29 @@
       $("frCnt").textContent=o.length; $("frCnt").style.display=o.length?"":"none";
     }).withFailureHandler(function(err){ $("frOffen").innerHTML='<div class="acempty">'+esc(err&&err.message?err.message:err)+'</div>'; })
       .getFreigabeListe(me.name,me.pinValue||"");
-    loadBewilligt();
+    loadBewilligt(); loadDispo();
+  }
+  function dispoZeit(a){ return a.von===a.bis?chIso(a.von)+(a.halb?" (½ Tag)":""):chIso(a.von)+" – "+chIso(a.bis); }
+  function loadDispo(){
+    var me=CURRENT; if(!me||!me.gl) return;
+    google.script.run.withSuccessHandler(function(res){
+      var n=res.neu||[], l=res.loeschen||[], h="";
+      $("dispoCnt").textContent=(n.length+l.length)?"("+(n.length+l.length)+")":"";
+      if(l.length) h+='<div class="am" style="font-weight:700;color:var(--warn)">Aus Dispo löschen (storniert)</div>'+l.map(function(a){
+        return '<div class="aitem" data-id="'+esc(a.id)+'"><div class="ah"><b>'+esc(a.ma)+'</b><span class="st storniert">storniert</span></div>'+
+          '<div>'+(a.typ==="Ferien"?"Ferien":esc(a.art))+' · '+dispoZeit(a)+' · <b>'+fmtH(a.tage)+'</b> Tag'+(a.tage===1?'':'e')+'</div>'+
+          (a.kommentar?'<div class="am">'+esc(a.kommentar)+'</div>':'')+'<div class="am">eingetragen am '+esc(a.dispo)+'</div>'+
+          '<div class="abtns"><button type="button" class="b-no" data-act="weg">✓ Aus Dispo gelöscht</button></div></div>';
+      }).join("");
+      if(n.length) h+=(l.length?'<div class="am" style="font-weight:700;margin-top:6px">Neu eintragen</div>':'')+n.map(function(a){
+        return '<div class="aitem" data-id="'+esc(a.id)+'"><div class="ah"><b>'+esc(a.ma)+'</b><span class="st bewilligt">bewilligt</span></div>'+
+          '<div>'+(a.typ==="Ferien"?"Ferien":esc(a.art))+' · '+dispoZeit(a)+' · <b>'+fmtH(a.tage)+'</b> Tag'+(a.tage===1?'':'e')+'</div>'+
+          (a.bem?'<div class="am">Bemerkung: '+esc(a.bem)+'</div>':'')+
+          '<div class="abtns"><button type="button" class="b-ok" data-act="ein">✓ Im Dispo eingetragen</button></div></div>';
+      }).join("");
+      $("frDispo").innerHTML=h||'<div class="acempty">Alles eingetragen – nichts zu tun.</div>';
+    }).withFailureHandler(function(err){ $("frDispo").innerHTML='<div class="acempty">'+esc(err&&err.message?err.message:err)+'</div>'; })
+      .getDispoListe(me.name,me.pinValue||"");
   }
   var BEW=[];
   function renderBewilligt(){
@@ -1022,6 +1046,7 @@
       return '<div class="aitem" data-id="'+esc(a.id)+'"><div class="ah"><b>'+esc(a.ma)+'</b><span class="st bewilligt">bewilligt</span></div>'+
         '<div>'+(a.typ==="Ferien"?"Ferien":esc(a.art))+' · '+zeit+' · <b>'+fmtH(a.tage)+'</b> Tag'+(a.tage===1?'':'e')+'</div>'+
         (a.bem?'<div class="am">Bemerkung: '+esc(a.bem)+'</div>':'')+(a.entVon?'<div class="am">bewilligt von '+esc(a.entVon)+'</div>':'')+sn+
+        '<div class="am">Dispo: '+(a.dispo?'✓ eingetragen '+esc(a.dispo):'<b>noch nicht eingetragen</b>')+'</div>'+
         '<div class="sbox"><div class="abtns"><button type="button" class="b-soft" data-act="storno-open">Stornieren …</button></div></div></div>';
     }).join(""):'<div class="acempty">Keine bewilligten Abwesenheiten ab heute.</div>';
   }
@@ -1073,7 +1098,7 @@
   function resetPerson(){                // beim Personenwechsel nichts vom Vorgänger stehen lassen
     flushServerSave();
     $("cards").innerHTML=""; PROT={}; weekStart=null; MEM={};
-    $("aMeine").innerHTML=""; $("frOffen").innerHTML=""; $("frErledigt").innerHTML="";
+    $("aMeine").innerHTML=""; $("frOffen").innerHTML=""; $("frErledigt").innerHTML=""; $("frDispo").innerHTML=""; $("frBewilligt").innerHTML="";
     $("wSaldo").innerHTML=""; $("aSaldo").innerHTML="";
     CURRENT=null;
   }
@@ -1132,6 +1157,13 @@
         .stornierenAntrag(CURRENT.name,CURRENT.pinValue||"",id,kom);
     }
   }
+  $("frDispo").addEventListener("click",function(e){
+    var b=e.target.closest?e.target.closest("button[data-act]"):null; if(!b) return;
+    var item=b.closest(".aitem"), id=item.getAttribute("data-id"); b.disabled=true; b.textContent="Wird gespeichert …";
+    google.script.run.withSuccessHandler(function(){ loadDispo(); loadBewilligt(); })
+      .withFailureHandler(function(err){ b.disabled=false; showErr(err&&err.message?err.message:String(err)); loadDispo(); })
+      .setDispo(CURRENT.name,CURRENT.pinValue||"",id,b.getAttribute("data-act"));
+  });
   $("frBewilligt").addEventListener("click",stornoClick);
   $("frErledigt").addEventListener("click",stornoClick);
   $("pinBack").addEventListener("click",function(){ PENDING=null; showName(); });
