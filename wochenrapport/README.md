@@ -103,6 +103,9 @@ Ersetzt die Papierformulare. Ablauf:
    Grün `F` = Ferien bewilligt, hellgrün `F?` = Antrag offen, blau = andere bewilligte Absenz (M, W, S, KO, KR, A),
    grau = Feiertag bzw. kein Arbeitstag laut Pensum; Details als Notiz in der Zelle. Unterste Zeile: Anzahl Abwesender
    pro Tag (orange ab 3, rot ab 5; Konstante `ZEITSTRAHL_WARN`).
+   Ab 5.15: Menü **Wochenrapport → Ferienplan als Excel** baut den Plan neu und legt `Ferienplan_JJJJ-MM-TT.xlsx`
+   im Drive-Ordner `Ferienplan Export` ab (nur dieser Reiter, also ohne PINs) und zeigt einen Download-Link.
+   Beim ersten Aufruf fragt Google einmal nach der Berechtigung für „externe Verbindungen“ (Export als Excel).
    Tagessoll und Arbeitstage stehen im Reiter `Mitarbeiter`, Spalte G (leer = 8 h) und H (leer = Mo–Fr,
    z. B. „Mo–Do“ oder „Di, Mi, Fr“).
    Spalte I „Keine Zeiterfassung“ (x) blendet die Person im Reiter **Kontrolle** aus (z. B. ohne Rapportpflicht).

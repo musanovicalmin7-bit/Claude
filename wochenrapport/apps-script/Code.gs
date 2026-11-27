@@ -94,6 +94,7 @@ function onOpen() {
     .addItem('Messerli-Export erstellen …', 'exportMesserli')
     .addItem('Ferienübersicht erstellen', 'erstelleFerienuebersicht')
     .addItem('Ferienplan (Zeitstrahl) erstellen', 'erstelleFerienplan')
+    .addItem('Ferienplan als Excel', 'exportFerienplanExcel')
     .addSeparator()
     .addItem('Erinnerung offene Anträge einrichten (täglich)', 'setupErinnerung')
     .addItem('Test: Antrag-Mail an GL senden', 'testAntragMail')
@@ -1282,6 +1283,11 @@ function planKuerzel_(a) {
  * Absenz, grau = Feiertag bzw. kein Arbeitstag laut Pensum. Unten die Anzahl Abwesender pro Tag.
  */
 function erstelleFerienplan() {
+  var info = baueFerienplan_();
+  try { SpreadsheetApp.getUi().alert('Ferienplan erstellt: ' + info.personen + ' Personen, ' + info.tage + ' Arbeitstage (' + info.zeitraum + ').'); } catch (e) {}
+}
+/** Baut den Reiter "Ferienplan" neu auf (ohne Meldung). Liefert { sheet, personen, tage, zeitraum }. */
+function baueFerienplan_() {
   var ss = ss_(), mit = readMitarbeiter_();
   var heute = new Date(); heute.setHours(12, 0, 0, 0);
   var start = new Date(heute); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
@@ -1414,8 +1420,47 @@ function erstelleFerienplan() {
   sh.setColumnWidth(1, 190); sh.setColumnWidth(2, 55); sh.setColumnWidths(C0, n, 24);
   sh.getRange(6, 2).setWrap(true);
   ss.setActiveSheet(sh);
-  try { SpreadsheetApp.getUi().alert('Ferienplan erstellt: ' + keys.length + ' Personen, ' + n + ' Arbeitstage (' +
-    chFromIso_(startIso) + ' – ' + chFromIso_(tage[n - 1].iso) + ').'); } catch (e) {}
+  return { sheet: sh, personen: keys.length, tage: n, zeitraum: chFromIso_(startIso) + ' – ' + chFromIso_(tage[n - 1].iso) };
+}
+
+/**
+ * Menü "Ferienplan als Excel": baut den Ferienplan neu, kopiert NUR diesen Reiter in eine temporäre Tabelle
+ * (keine anderen Reiter, also keine PINs), exportiert sie als .xlsx in den Drive-Ordner "Ferienplan Export"
+ * und zeigt einen Download-Link. Die temporäre Tabelle wird gleich wieder gelöscht.
+ */
+function exportFerienplanExcel() {
+  var info = baueFerienplan_();
+  SpreadsheetApp.flush();
+  var datum = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var name = 'Ferienplan_' + datum;
+  var tmp = SpreadsheetApp.create(name + '_temp');
+  var tmpFile = DriveApp.getFileById(tmp.getId());
+  try {
+    var kopie = info.sheet.copyTo(tmp).setName('Ferienplan');
+    tmp.getSheets().forEach(function (x) { if (x.getSheetId() !== kopie.getSheetId()) tmp.deleteSheet(x); });
+    kopie.setFrozenRows(6); kopie.setFrozenColumns(2);
+    SpreadsheetApp.flush();
+    var resp = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + tmp.getId() + '/export?format=xlsx',
+      { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    if (resp.getResponseCode() !== 200) throw new Error('Export fehlgeschlagen (HTTP ' + resp.getResponseCode() + ').');
+    var it = DriveApp.getFoldersByName('Ferienplan Export');
+    var folder = it.hasNext() ? it.next() : DriveApp.createFolder('Ferienplan Export');
+    var alt = folder.getFilesByName(name + '.xlsx'); while (alt.hasNext()) alt.next().setTrashed(true);   // gleicher Tag: ersetzen
+    var file = folder.createFile(resp.getBlob().setName(name + '.xlsx'));
+  } finally {
+    tmpFile.setTrashed(true);
+  }
+  var link = 'https://drive.google.com/uc?export=download&id=' + file.getId();
+  var html = HtmlService.createHtmlOutput(
+    '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5">' +
+    '<p>Ferienplan ' + esc_(info.zeitraum) + ' · ' + info.personen + ' Personen</p>' +
+    '<p><a href="' + link + '" target="_blank" style="display:inline-block;padding:8px 14px;background:#1F4E79;color:#fff;' +
+    'border-radius:4px;text-decoration:none">' + esc_(name) + '.xlsx herunterladen</a></p>' +
+    '<p style="color:#666;font-size:12px">Enthält nur den Reiter Ferienplan. Danach in den Ordner ' +
+    'Arbeitszeit_und_Absenzen verschieben. Die Datei liegt auch in Google Drive im Ordner „Ferienplan Export“.</p></div>')
+    .setWidth(420).setHeight(200);
+  try { SpreadsheetApp.getUi().showModalDialog(html, 'Ferienplan als Excel'); } catch (e) {}
+  return file.getUrl();
 }
 
 /** GL-Übersicht: alle bewilligten Abwesenheiten, die heute oder später enden (nicht ausgebucht), nach Datum. */
