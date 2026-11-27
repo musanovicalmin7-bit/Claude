@@ -1098,14 +1098,27 @@ function saldoFuer_(salden, ma, alle, ohneId) {
   var rec = readMitarbeiter_()[String(ma || '').trim().toLowerCase()] || {};
   var s = salden['#' + (rec.nr || '')] || salden['n:' + String(ma || '').trim().toLowerCase()];
   if (!s) return null;
-  var key = String(ma).trim().toLowerCase(), bewilligt = 0;
+  var key = String(ma).trim().toLowerCase(), bewilligt = 0, geplant = [], maxJahr = 0;
   (alle || []).forEach(function (a) {
     if (a.id === ohneId || a.status !== 'bewilligt' || a.typ !== 'Ferien' || String(a.ma).trim().toLowerCase() !== key) return;
-    if (!s.stand || a.bis > s.stand) bewilligt += a.tage;
+    if (!s.stand || a.bis > s.stand) {
+      bewilligt += a.tage;
+      geplant.push({ von: a.von, bis: a.bis, tage: a.tage });
+      maxJahr = Math.max(maxJahr, Number(String(a.bis).slice(0, 4)) || 0);
+    }
   });
+  geplant.sort(function (x, y) { return x.von < y.von ? -1 : 1; });
   return { ferien: s.ferien, ueberstd: s.ueberstd, ueberstdB: s.ueberstdB, ueberzeit: s.ueberzeit, stand: s.stand ? chFromIso_(s.stand) : '',
            bewilligtTage: bewilligt, hinweis: s.hinweis || '', tagH: pensum_(rec).stunden,   // Tagessoll (Teilzeit) für die Umrechnung h ↔ Tage
-           standJahr: s.stand ? Number(String(s.stand).slice(0, 4)) : new Date().getFullYear(), anspruchJahr: ferienAnspruch_(rec) };
+           standJahr: s.stand ? Number(String(s.stand).slice(0, 4)) : new Date().getFullYear(), anspruchJahr: ferienAnspruch_(rec),
+           geplant: geplant, saldoNachPlan: saldoNachPlan_(s, rec, bewilligt, maxJahr) };
+}
+/** Feriensaldo nach allen bewilligten, noch nicht gebuchten Ferien; Ferien in Folgejahren bekommen deren Anspruch dazu. */
+function saldoNachPlan_(s, rec, tage, maxJahr) {
+  if (s.ferien == null) return null;
+  var stJahr = s.stand ? Number(String(s.stand).slice(0, 4)) : new Date().getFullYear();
+  var plus = maxJahr > stJahr ? ferienAnspruch_(rec) * (maxJahr - stJahr) : 0;
+  return { stunden: Math.round((s.ferien + plus - tage * pensum_(rec).stunden) * 100) / 100, bisJahr: maxJahr > stJahr ? maxJahr : stJahr, plus: plus };
 }
 /** Ferienanspruch pro Kalenderjahr in Stunden: Tage (Spalte J, leer = 27 nach GAV Art. 29.1) × 8 h × Pensum (Wochensoll / 40 h). */
 function ferienAnspruch_(rec) {
@@ -1147,6 +1160,61 @@ function getFreigabeListe(name, pin) {
       var am = r.v[A.ENT_AM]; return r.v[A.STATUS] !== 'offen' && am instanceof Date && am >= grenze; })
     .map(antragObj_).reverse().slice(0, 30);
   return { offen: offen, erledigt: erledigt };
+}
+
+/** GL-Übersicht: alle bewilligten Abwesenheiten, die heute oder später enden (nicht ausgebucht), nach Datum. */
+function getBewilligteUebersicht(name, pin) {
+  var chk = requirePin_(name, pin);
+  if (!chk.gl) throw new Error('Keine Berechtigung (nur GL).');
+  var heute = isoDate_(new Date()), rows = antragRows_(), all = rows.map(antragObj_), salden = saldenMap_(), cache = {};
+  var out = [];
+  rows.forEach(function (r) {
+    var aus = r.v[A.AUSGEBUCHT];
+    if (r.v[A.STATUS] !== 'bewilligt' || aus === true || /^(ja|x|true)$/i.test(String(aus).trim())) return;
+    var a = antragObj_(r);
+    if (a.bis < heute) return;
+    var k = a.ma.trim().toLowerCase();
+    if (!(k in cache)) cache[k] = saldoFuer_(salden, a.ma, all, '');
+    var sal = cache[k];
+    out.push({ id: a.id, ma: a.ma, typ: a.typ, art: a.art, von: a.von, bis: a.bis, tage: a.tage, halb: a.halb,
+               bem: a.bem, entVon: a.entVon, saldoNach: (a.typ === 'Ferien' && sal && sal.saldoNachPlan) ? sal.saldoNachPlan : null,
+               tagH: sal ? sal.tagH : 8 });
+  });
+  out.sort(function (x, y) { return x.von < y.von ? -1 : x.von > y.von ? 1 : (x.ma < y.ma ? -1 : 1); });
+  return out;
+}
+
+/** GL storniert einen bewilligten Antrag (z. B. verschoben). Kommentar Pflicht, Mail an den Mitarbeiter. */
+function stornierenAntrag(name, pin, id, kommentar) {
+  var chk = requirePin_(name, pin);
+  if (!chk.gl) throw new Error('Keine Berechtigung (nur GL).');
+  kommentar = String(kommentar || '').trim();
+  if (!kommentar) throw new Error('Bitte beim Stornieren kurz begründen (z. B. „verschoben auf …“).');
+  var lock = LockService.getScriptLock(); lock.waitLock(15000);
+  var a;
+  try {
+    var r = antragRows_().filter(function (x) { return String(x.v[A.ID]) === String(id); })[0];
+    if (!r) throw new Error('Antrag nicht gefunden.');
+    if (r.v[A.STATUS] !== 'bewilligt') throw new Error('Nur bewilligte Anträge können storniert werden (Status: ' + r.v[A.STATUS] + ').');
+    var gl = (readMitarbeiter_()[String(name).trim().toLowerCase()] || {}).name || name;
+    var alt = trim_(r.v[A.KOMMENTAR]);
+    var text = 'Storniert von ' + gl + ' am ' + fmtChDate_(new Date()) + ': ' + kommentar.slice(0, 250) + (alt ? ' | vorher: ' + alt : '');
+    antragSheet_().getRange(r.row, A.STATUS + 1, 1, 4).setValues([['storniert', new Date(), gl, text.slice(0, 400)]]);
+    r.v[A.STATUS] = 'storniert';
+    a = antragObj_(r);
+  } finally { lock.releaseLock(); }
+  try {
+    var mail = emailForName_(a.ma);
+    if (mail) {
+      var zeit = a.halb ? chFromIso_(a.von) + ' (halber Tag)' : chFromIso_(a.von) + ' – ' + chFromIso_(a.bis);
+      MailApp.sendEmail({ to: mail,
+        subject: (a.typ === 'Ferien' ? 'Ferien ' : 'Absenz ') + 'storniert: ' + zeit,
+        body: 'Hallo ' + a.ma + '\n\nDeine bewilligte ' + (a.typ === 'Ferien' ? 'Ferien' : 'Absenz (' + a.art + ')') + ' für ' + zeit +
+              ' wurde storniert.\nGrund: ' + kommentar + '\n\nDiese Tage erscheinen nicht mehr in deiner Wochenerfassung.' +
+              '\n\nDiese Nachricht wurde automatisch erstellt.' });
+    }
+  } catch (e) {}
+  return { ok: true };
 }
 
 /** GL entscheidet: entscheid = 'bewilligt' | 'abgelehnt'. */

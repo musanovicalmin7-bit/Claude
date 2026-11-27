@@ -91,6 +91,10 @@ Ersetzt die Papierformulare. Ablauf:
    Ab 5.11 rechnen Saldo-Anzeige und Freigabe Tage ↔ Stunden mit diesem Tagessoll (z. B. 60 % = 4.8 h/Tag).
    Ab 5.12 zählt die Freigabe bei Anträgen im Folgejahr den Ferienanspruch dieses Jahres dazu (Spalte J
    „Ferientage pro Jahr“, leer = 27 Tage nach GAV; Stunden = Tage × 8 h × Pensum).
+   Ebenfalls ab 5.12: Unter **Freigabe** listet „Bewilligte Abwesenheiten (ab heute)“ alle bewilligten, noch nicht
+   ausgebuchten Ferien/Absenzen nach Datum, mit Feriensaldo danach. Die GL kann dort einen bewilligten Antrag
+   **stornieren** (Grund Pflicht, Mail an den Mitarbeiter; Status `storniert`, fällt aus Vorbefüllung und Export).
+   Mitarbeitende sehen bei ihrem Saldo die eigenen bewilligten, noch nicht gebuchten Ferien und den Saldo danach.
    Tagessoll und Arbeitstage stehen im Reiter `Mitarbeiter`, Spalte G (leer = 8 h) und H (leer = Mo–Fr,
    z. B. „Mo–Do“ oder „Di, Mi, Fr“).
    Spalte I „Keine Zeiterfassung“ (x) blendet die Person im Reiter **Kontrolle** aus (z. B. ohne Rapportpflicht).

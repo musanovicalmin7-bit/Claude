@@ -193,6 +193,8 @@
   .st.bewilligt{ background:#E3F1E7; color:var(--ok); }
   .st.abgelehnt{ background:#FBECE4; color:var(--warn); }
   .st.zurückgezogen{ background:var(--paper); color:var(--ink-soft); }
+  .st.storniert{ background:var(--paper); color:var(--ink-soft); }
+  .aitem .neg{ color:var(--warn); font-weight:700; }
   .abtns{ display:flex; gap:8px; margin-top:10px; }
   .abtns button{ flex:1; padding:12px; font:inherit; font-size:15px; font-weight:700; border-radius:10px; cursor:pointer; }
   .b-ok{ border:0; background:var(--ok); color:#fff; }
@@ -300,6 +302,8 @@
   <section id="freigabeScreen" style="display:none">
     <div class="block-label">Offen</div>
     <div class="alist" id="frOffen"><div class="acempty">Lädt …</div></div>
+    <div class="block-label">Bewilligte Abwesenheiten (ab heute) <label style="font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px"><input type="checkbox" id="frNurFerien" checked> nur Ferien</label></div>
+    <div class="alist" id="frBewilligt"><div class="acempty">Lädt …</div></div>
     <div class="block-label">Entschieden (letzte 30 Tage)</div>
     <div class="alist" id="frErledigt"></div>
   </section>
@@ -964,7 +968,11 @@
       var html=s?'<b>Dein Saldo</b> <span class="stand">· letzter Stand '+esc(s.stand||"unbekannt")+'</span>'+
         '<div class="zeile"><span>Ferien <b>'+h2(s.ferien)+' h</b>'+(s.ferien!=null?' (≈ '+t1(s.ferien/tagH(s))+' Tage'+(tagH(s)!==8?' à '+h2(tagH(s))+' h':'')+')':'')+'</span>'+
         '<span>Überstunden <b>'+h2(uTotal(s))+' h</b></span></div>'+
-        (s.bewilligtTage?'<div>Bewilligte Ferien, noch nicht gebucht: '+t1(s.bewilligtTage)+' Tage</div>':'')+
+        (s.geplant&&s.geplant.length?'<div style="margin-top:6px"><b>Deine bewilligten Ferien</b> (noch nicht gebucht):'+
+          s.geplant.map(function(g){ return '<br>· '+chIso(g.von)+(g.bis!==g.von?' – '+chIso(g.bis):'')+' · '+t1(g.tage)+' Tag'+(g.tage===1?'':'e'); }).join('')+
+          (s.saldoNachPlan?'<br>Saldo danach: <b class="'+(s.saldoNachPlan.stunden<0?'neg':'')+'">≈ '+h2(s.saldoNachPlan.stunden)+' h</b> ('+t1(s.saldoNachPlan.stunden/tagH(s))+' Tage)'+
+            (s.saldoNachPlan.plus?' inkl. Ferienanspruch '+s.saldoNachPlan.bisJahr:''):'')+'</div>'
+          :(s.bewilligtTage?'<div>Bewilligte Ferien, noch nicht gebucht: '+t1(s.bewilligtTage)+' Tage</div>':''))+
         (s.hinweis?'<div class="hinweis">'+esc(s.hinweis)+'</div>':'')+
         '<div class="dwrap"><button type="button" class="detail" data-act="open">Stimmt etwas nicht? Details anfordern</button></div>':"";
       ["wSaldo","aSaldo"].forEach(function(id){ $(id).innerHTML=html; $(id).style.display=html?"":"none"; });
@@ -1001,6 +1009,26 @@
       $("frCnt").textContent=o.length; $("frCnt").style.display=o.length?"":"none";
     }).withFailureHandler(function(err){ $("frOffen").innerHTML='<div class="acempty">'+esc(err&&err.message?err.message:err)+'</div>'; })
       .getFreigabeListe(me.name,me.pinValue||"");
+    loadBewilligt();
+  }
+  var BEW=[];
+  function renderBewilligt(){
+    var nur=$("frNurFerien").checked, l=BEW.filter(function(a){ return !nur||a.typ==="Ferien"; });
+    $("frBewilligt").innerHTML=l.length?l.map(function(a){
+      var zeit=a.von===a.bis?chIso(a.von)+(a.halb?" (½ Tag)":""):chIso(a.von)+" – "+chIso(a.bis);
+      var sn=a.saldoNach?'<div class="am">Feriensaldo nach allen bewilligten Ferien: <b class="'+(a.saldoNach.stunden<0?'neg':'')+'">≈ '+h2(a.saldoNach.stunden)+' h</b>'+
+        (a.saldoNach.plus?' (inkl. Anspruch '+a.saldoNach.bisJahr+')':'')+'</div>':'';
+      return '<div class="aitem" data-id="'+esc(a.id)+'"><div class="ah"><b>'+esc(a.ma)+'</b><span class="st bewilligt">bewilligt</span></div>'+
+        '<div>'+(a.typ==="Ferien"?"Ferien":esc(a.art))+' · '+zeit+' · <b>'+fmtH(a.tage)+'</b> Tag'+(a.tage===1?'':'e')+'</div>'+
+        (a.bem?'<div class="am">Bemerkung: '+esc(a.bem)+'</div>':'')+(a.entVon?'<div class="am">bewilligt von '+esc(a.entVon)+'</div>':'')+sn+
+        '<div class="sbox"><div class="abtns"><button type="button" class="b-soft" data-act="storno-open">Stornieren …</button></div></div></div>';
+    }).join(""):'<div class="acempty">Keine bewilligten Abwesenheiten ab heute.</div>';
+  }
+  function loadBewilligt(){
+    var me=CURRENT; if(!me||!me.gl) return;
+    google.script.run.withSuccessHandler(function(list){ BEW=list||[]; renderBewilligt(); })
+      .withFailureHandler(function(err){ $("frBewilligt").innerHTML='<div class="acempty">'+esc(err&&err.message?err.message:err)+'</div>'; })
+      .getBewilligteUebersicht(me.name,me.pinValue||"");
   }
 
   /* ---------- Events ---------- */
@@ -1083,6 +1111,23 @@
     google.script.run.withSuccessHandler(function(){ loadFreigabe(); })
       .withFailureHandler(function(err){ item.querySelectorAll("button").forEach(function(x){ x.disabled=false; }); showErr(err&&err.message?err.message:String(err)); loadFreigabe(); })
       .entscheidAntrag(CURRENT.name,CURRENT.pinValue||"",id,act,kom);
+  });
+  $("frNurFerien").addEventListener("change",renderBewilligt);
+  $("frBewilligt").addEventListener("click",function(e){
+    var b=e.target.closest?e.target.closest("button[data-act]"):null; if(!b) return;
+    var item=b.closest(".aitem"), id=item.getAttribute("data-id"), act=b.getAttribute("data-act"), box=item.querySelector(".sbox");
+    if(act==="storno-open"){ box.innerHTML='<textarea placeholder="Grund (Pflicht), z. B. verschoben auf 07.–14.12."></textarea>'+
+      '<div class="abtns"><button type="button" class="b-soft" data-act="storno-cancel">Abbrechen</button><button type="button" class="b-no" data-act="storno">Stornieren</button></div>';
+      box.querySelector("textarea").focus(); return; }
+    if(act==="storno-cancel"){ renderBewilligt(); return; }
+    if(act==="storno"){
+      var kom=box.querySelector("textarea").value||"";
+      if(!kom.trim()){ showErr("Bitte beim Stornieren kurz begründen."); return; }
+      box.querySelectorAll("button").forEach(function(x){ x.disabled=true; });
+      google.script.run.withSuccessHandler(function(){ loadFreigabe(); })
+        .withFailureHandler(function(err){ box.querySelectorAll("button").forEach(function(x){ x.disabled=false; }); showErr(err&&err.message?err.message:String(err)); })
+        .stornierenAntrag(CURRENT.name,CURRENT.pinValue||"",id,kom);
+    }
   });
   $("pinBack").addEventListener("click",function(){ PENDING=null; showName(); });
   $("pinOk").addEventListener("click",submitPin);
