@@ -98,6 +98,11 @@ Ersetzt die Papierformulare. Ablauf:
    Ab 5.13: Menü **Wochenrapport → Ferienübersicht erstellen** schreibt den Reiter `Ferienübersicht`: pro Person
    Saldo (Reiter Salden), bewilligte Rest-Ferien dieses Jahres, Saldo Ende Jahr, Anspruch und bewilligte Ferien nächstes
    Jahr, Saldo nach Plan; darunter alle bewilligten Ferien ab heute mit Überschneidungen (gelb).
+   Ab 5.14: Menü **Wochenrapport → Ferienplan (Zeitstrahl) erstellen** schreibt den Reiter `Ferienplan`: eine Zeile pro
+   Mitarbeiter, eine Spalte pro Arbeitstag (Mo–Fr, ab Montag dieser Woche, mind. 6 Monate, höchstens bis Ende nächstes Jahr).
+   Grün `F` = Ferien bewilligt, hellgrün `F?` = Antrag offen, blau = andere bewilligte Absenz (M, W, S, KO, KR, A),
+   grau = Feiertag bzw. kein Arbeitstag laut Pensum; Details als Notiz in der Zelle. Unterste Zeile: Anzahl Abwesender
+   pro Tag (orange ab 3, rot ab 5; Konstante `ZEITSTRAHL_WARN`).
    Tagessoll und Arbeitstage stehen im Reiter `Mitarbeiter`, Spalte G (leer = 8 h) und H (leer = Mo–Fr,
    z. B. „Mo–Do“ oder „Di, Mi, Fr“).
    Spalte I „Keine Zeiterfassung“ (x) blendet die Person im Reiter **Kontrolle** aus (z. B. ohne Rapportpflicht).

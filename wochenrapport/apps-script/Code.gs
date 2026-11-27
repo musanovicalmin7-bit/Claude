@@ -93,6 +93,7 @@ function onOpen() {
     .addItem('Kontrolle aktualisieren', 'updateKontrolle')
     .addItem('Messerli-Export erstellen …', 'exportMesserli')
     .addItem('Ferienübersicht erstellen', 'erstelleFerienuebersicht')
+    .addItem('Ferienplan (Zeitstrahl) erstellen', 'erstelleFerienplan')
     .addSeparator()
     .addItem('Erinnerung offene Anträge einrichten (täglich)', 'setupErinnerung')
     .addItem('Test: Antrag-Mail an GL senden', 'testAntragMail')
@@ -1235,11 +1236,10 @@ function erstelleFerienuebersicht() {
   r = 3;
   sh.getRange(r, 1, 1, kopf.length).setValues([kopf]).setFontWeight('bold').setBackground('#EDF3F8').setWrap(true);
   if (tab.length) {
+    sh.getRange(r + 1, 5, tab.length, 1).setNumberFormat('@');          // Stand als Text (sonst macht Sheets ein Datum/eine Zahl daraus)
     sh.getRange(r + 1, 1, tab.length, kopf.length).setValues(tab);
-    sh.getRange(r + 1, 3, tab.length, 9).setNumberFormat('0.00');
-    sh.getRange(r + 1, 6, tab.length, 1).setNumberFormat('0.0');
-    sh.getRange(r + 1, 8, tab.length, 1).setNumberFormat('0.0');
-    sh.getRange(r + 1, 10, tab.length, 1).setNumberFormat('0.0');
+    [3, 4, 7, 9, 11].forEach(function (c) { sh.getRange(r + 1, c, tab.length, 1).setNumberFormat('0.00'); });
+    [6, 8, 10].forEach(function (c) { sh.getRange(r + 1, c, tab.length, 1).setNumberFormat('0.0'); });
     var fg = tab.map(function (row) { return row.map(function (v, i) { return (i >= 3 && typeof v === 'number' && v < 0) ? '#B5551D' : '#000000'; }); });
     sh.getRange(r + 1, 1, tab.length, kopf.length).setFontColors(fg);
   }
@@ -1257,6 +1257,165 @@ function erstelleFerienuebersicht() {
   sh.setColumnWidth(6, 120); sh.setColumnWidth(7, 160);
   ss.setActiveSheet(sh);
   try { SpreadsheetApp.getUi().alert('Ferienübersicht erstellt: ' + tab.length + ' Personen, ' + liste.length + ' bewilligte Ferien ab heute.'); } catch (e) {}
+}
+
+/* ================= Ferienplan / Zeitstrahl (Menü) ================= */
+var SHEET_ZEITSTRAHL = 'Ferienplan';
+var ZEITSTRAHL_WARN = 3;   // ab so vielen gleichzeitig Abwesenden wird der Tag in der Summenzeile orange (ab +2 rot)
+
+/** Kürzel für eine Abwesenheit im Zeitstrahl. */
+function planKuerzel_(a) {
+  if (a.typ === 'Ferien') return 'F';
+  var t = String(a.art || '').toLowerCase();
+  if (/milit|zivil/.test(t)) return 'M';
+  if (/weiterb|kurs/.test(t)) return 'W';
+  if (/schule/.test(t)) return 'S';
+  if (/kompens/.test(t)) return 'KO';
+  if (/krank|unfall/.test(t)) return 'KR';
+  return 'A';
+}
+
+/**
+ * Menü "Ferienplan (Zeitstrahl) erstellen": Reiter "Ferienplan" mit einer Zeile pro Mitarbeiter und einer Spalte pro
+ * Arbeitstag (Mo–Fr) ab dem Montag dieser Woche bis mindestens +6 Monate bzw. bis zur letzten eingetragenen Abwesenheit
+ * (höchstens Ende nächstes Jahr). Grün = Ferien bewilligt, hellgrün "?" = Ferienantrag offen, blau = andere bewilligte
+ * Absenz, grau = Feiertag bzw. kein Arbeitstag laut Pensum. Unten die Anzahl Abwesender pro Tag.
+ */
+function erstelleFerienplan() {
+  var ss = ss_(), mit = readMitarbeiter_();
+  var heute = new Date(); heute.setHours(12, 0, 0, 0);
+  var start = new Date(heute); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  var startIso = isoDate_(start), Y1 = heute.getFullYear() + 1;
+  var antraege = antragRows_().map(antragObj_).filter(function (a) {
+    return (a.status === 'bewilligt' || a.status === 'offen') && a.von && a.bis && a.bis >= startIso;
+  });
+
+  // Zeitraum
+  var ende = new Date(heute); ende.setMonth(ende.getMonth() + 6);
+  antraege.forEach(function (a) { var b = isoToDate_(a.bis); if (b && b > ende) ende = b; });
+  var max = new Date(Y1, 11, 31, 12); if (ende > max) ende = max;
+  var tage = [], feiern = {};
+  for (var d = new Date(start); d <= ende; d.setDate(d.getDate() + 1)) {
+    var wd = d.getDay(); if (wd < 1 || wd > 5) continue;
+    var y = d.getFullYear(); if (!feiern[y]) feiern[y] = feiertage_(y);
+    tage.push({ iso: isoDate_(d), wd: wd, tag: d.getDate(), monat: d.getMonth(), jahr: y,
+                kw: isoWeek_(d), woche: isoDate_(new Date(d.getFullYear(), d.getMonth(), d.getDate() - wd + 1, 12)),
+                feiertag: feiern[y].indexOf(isoDate_(d)) >= 0 });
+  }
+  var idx = {}; tage.forEach(function (t, i) { idx[t.iso] = i; });
+
+  // Personen: alle aus dem Reiter Mitarbeiter, dazu Namen aus Anträgen, die dort fehlen
+  var personen = {};
+  Object.keys(mit).forEach(function (k) { personen[k] = { name: mit[k].name, pens: pensum_(mit[k]), zellen: {} }; });
+  antraege.forEach(function (a) {
+    var k = a.ma.trim().toLowerCase();
+    if (!personen[k]) personen[k] = { name: a.ma.trim(), pens: pensum_({}), zellen: {} };
+  });
+
+  // Zellen füllen; Rang: bewilligte Ferien 3 > andere bewilligte Absenz 2 > offener Antrag 1
+  antraege.forEach(function (a) {
+    var p = personen[a.ma.trim().toLowerCase()], rang = a.status === 'offen' ? 1 : (a.typ === 'Ferien' ? 3 : 2);
+    var kz = planKuerzel_(a) + (a.halb ? '½' : ''), von = a.von < startIso ? startIso : a.von;
+    var info = (a.typ === 'Ferien' ? 'Ferien' : a.art) + ' ' + chFromIso_(a.von) + (a.bis !== a.von ? '–' + chFromIso_(a.bis) : '') +
+               ' (' + a.tage + ' T.) · ' + (a.status === 'offen' ? 'Antrag offen' : 'bewilligt' + (a.entVon ? ' von ' + a.entVon : '')) +
+               (a.bem ? ' · ' + a.bem : '');
+    for (var x = isoToDate_(von), e = isoToDate_(a.bis); x <= e; x.setDate(x.getDate() + 1)) {
+      var i = idx[isoDate_(x)];
+      if (i == null || tage[i].feiertag || p.pens.tage.indexOf(tage[i].wd) < 0) continue;
+      var alt = p.zellen[i];
+      if (alt && alt.rang >= rang) { alt.info += '\n' + info; continue; }
+      p.zellen[i] = { rang: rang, kz: rang === 1 ? kz + '?' : kz, info: info + (alt ? '\n' + alt.info : '') };
+    }
+  });
+
+  var keys = Object.keys(personen).sort(function (a, b) { return personen[a].name.localeCompare(personen[b].name, 'de'); });
+  var FARBE = { 3: '#93C47D', 2: '#9FC5E8', 1: '#D9EAD3' }, FT = '#B7B7B7', FREI = '#EFEFEF';
+  var n = tage.length, C0 = 3;   // Spalte A Name, B Ferientage im Zeitraum, ab C die Tage
+  var werte = [], farben = [], notizen = [], summe = tage.map(function () { return 0; });
+  keys.forEach(function (k) {
+    var p = personen[k], fTage = 0, wRow = [p.name, 0], fRow = [null, null], nRow = ['', ''];
+    tage.forEach(function (t, i) {
+      var z = p.zellen[i];
+      if (t.feiertag) { wRow.push(''); fRow.push(FT); nRow.push(''); return; }
+      if (p.pens.tage.indexOf(t.wd) < 0) { wRow.push(''); fRow.push(FREI); nRow.push(''); return; }
+      if (!z) { wRow.push(''); fRow.push(null); nRow.push(''); return; }
+      wRow.push(z.kz); fRow.push(FARBE[z.rang]); nRow.push(z.info);
+      if (z.rang >= 2) summe[i]++;
+      if (z.rang === 3) fTage += /½/.test(z.kz) ? 0.5 : 1;
+    });
+    wRow[1] = fTage || '';
+    werte.push(wRow); farben.push(fRow); notizen.push(nRow);
+  });
+
+  var sh = ss.getSheetByName(SHEET_ZEITSTRAHL) || ss.insertSheet(SHEET_ZEITSTRAHL);
+  sh.clear(); sh.clearNotes();
+  sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
+  if (sh.getMaxColumns() < C0 - 1 + n) sh.insertColumnsAfter(sh.getMaxColumns(), C0 - 1 + n - sh.getMaxColumns());
+  sh.getRange(1, 1).setValue('Ferienplan ' + chFromIso_(startIso) + ' – ' + chFromIso_(tage[n - 1].iso) + ' · erstellt ' +
+    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm') + ' · Details: Maus über die Zelle').setFontWeight('bold');
+  var leg = [['F', 'Ferien bewilligt', FARBE[3]], ['F?', 'Ferienantrag offen', FARBE[1]],
+             ['M', 'andere Absenz bewilligt: M Militär, W Weiterbildung, S Schule, KO Kompensation, KR Krank, A andere', FARBE[2]],
+             ['', 'Feiertag', FT], ['', 'kein Arbeitstag (Teilzeit)', FREI], ['½', 'halber Tag', null]];
+  sh.getRange(2, 1).setValue('Legende:').setFontStyle('italic');
+  var lc = C0;
+  leg.forEach(function (l) {
+    sh.getRange(2, lc).setValue(l[0]).setBackground(l[2]).setHorizontalAlignment('center');
+    sh.getRange(2, lc + 1).setValue(l[1]).setFontSize(9);
+    lc += Math.ceil(l[1].length * 5.5 / 24) + 2;
+  });
+
+  // Kopfzeilen 3–6: Monat, KW, Tag, Wochentag
+  var MON = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  var WT = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr'];
+  var kopf = [['', ''], ['', ''], ['', ''], ['Mitarbeiter', 'Ferien-tage']];
+  var kopfFarbe = [[null, null], [null, null], [null, null], [null, null]];
+  tage.forEach(function (t) {
+    kopf[0].push(MON[t.monat] + ' ' + t.jahr); kopf[1].push('KW ' + t.kw); kopf[2].push(t.tag); kopf[3].push(WT[t.wd]);
+    var f = t.feiertag ? FT : (t.iso === isoDate_(heute) ? '#FCE5CD' : '#EDF3F8');
+    kopfFarbe.forEach(function (row, i) { row.push(i >= 2 ? f : '#EDF3F8'); });
+  });
+  sh.getRange(3, 1, 4, C0 - 1 + n).setValues(kopf).setBackgrounds(kopfFarbe).setFontWeight('bold')
+    .setHorizontalAlignment('center').setFontSize(9);
+  function verbinde(zeile, schluessel) {
+    var von = 0;
+    for (var i = 1; i <= n; i++) {
+      if (i === n || schluessel(tage[i]) !== schluessel(tage[von])) {
+        if (i - von > 1) sh.getRange(zeile, C0 + von, 1, i - von).merge();
+        von = i;
+      }
+    }
+  }
+  verbinde(3, function (t) { return t.jahr * 100 + t.monat; });
+  verbinde(4, function (t) { return t.woche; });
+
+  var r0 = 7;
+  if (werte.length) {
+    var rng = sh.getRange(r0, 1, werte.length, C0 - 1 + n);
+    rng.setValues(werte).setBackgrounds(farben).setNotes(notizen);
+    sh.getRange(r0, C0, werte.length, n).setHorizontalAlignment('center').setFontSize(9);
+    sh.getRange(r0, 2, werte.length, 1).setHorizontalAlignment('center').setNumberFormat('0.#');
+  }
+  var rs = r0 + werte.length;
+  var sRow = ['Abwesend (bewilligt)', ''].concat(summe.map(function (x) { return x || ''; }));
+  var sFarbe = [['#EDF3F8', '#EDF3F8'].concat(summe.map(function (x) {
+    return x >= ZEITSTRAHL_WARN + 2 ? '#E06666' : x >= ZEITSTRAHL_WARN ? '#F6B26B' : '#EDF3F8'; }))];
+  sh.getRange(rs, 1, 1, C0 - 1 + n).setValues([sRow]).setBackgrounds(sFarbe).setFontWeight('bold');
+  sh.getRange(rs, C0, 1, n).setHorizontalAlignment('center').setFontSize(9);
+
+  // Wochentrennung (Montag) und heute markieren
+  tage.forEach(function (t, i) {
+    if (t.wd === 1) sh.getRange(4, C0 + i, rs - 3, 1).setBorder(null, true, null, null, null, null, '#666666', SpreadsheetApp.BorderStyle.SOLID);
+  });
+  var iHeute = idx[isoDate_(heute)];
+  if (iHeute != null) sh.getRange(5, C0 + iHeute, rs - 4, 1)
+    .setBorder(null, true, null, true, null, null, '#CC0000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+
+  sh.setFrozenRows(6); sh.setFrozenColumns(2);
+  sh.setColumnWidth(1, 190); sh.setColumnWidth(2, 55); sh.setColumnWidths(C0, n, 24);
+  sh.getRange(6, 2).setWrap(true);
+  ss.setActiveSheet(sh);
+  try { SpreadsheetApp.getUi().alert('Ferienplan erstellt: ' + keys.length + ' Personen, ' + n + ' Arbeitstage (' +
+    chFromIso_(startIso) + ' – ' + chFromIso_(tage[n - 1].iso) + ').'); } catch (e) {}
 }
 
 /** GL-Übersicht: alle bewilligten Abwesenheiten, die heute oder später enden (nicht ausgebucht), nach Datum. */
