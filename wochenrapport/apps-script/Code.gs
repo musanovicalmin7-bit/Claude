@@ -829,7 +829,7 @@ function antragObj_(r) {
            halb: String(v[A.HALB]) === 'ja', abzug: String(v[A.ABZUG] || ''), bem: String(v[A.BEM] || ''),
            aufgebot: String(v[A.AUFGEBOT]) === 'ja', sold: String(v[A.SOLD]) === 'ja',
            status: String(v[A.STATUS]), entAm: fmtTs_(v[A.ENT_AM]), entVon: String(v[A.ENT_VON] || ''),
-           kommentar: String(v[A.KOMMENTAR] || '') };
+           kommentar: String(v[A.KOMMENTAR] || ''), dispo: dispoText_(v[A.DISPO]), dispoWeg: dispoText_(v[A.DISPO_WEG]) };
 }
 function isoText_(v) {
   if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');

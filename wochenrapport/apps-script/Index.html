@@ -240,7 +240,7 @@
   <!-- Schritt 1: Name (nur beim ersten Mal) -->
   <section id="nameScreen" style="display:none">
     <h2>Wer bist du?</h2>
-    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.17 · Ferienanträge mit Freigabe</div>
+    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.18 · Ferienanträge mit Freigabe</div>
     <input id="nameSearch" placeholder="Name tippen …" autocomplete="off">
     <div id="nameList"></div>
   </section>
@@ -960,6 +960,10 @@
     if(mode==="gl"&&a.ueberschneidung&&a.ueberschneidung.length) h+='<div class="ovl">Gleichzeitig abwesend: '+a.ueberschneidung.map(esc).join(", ")+'</div>';
     if(mode==="gl"&&a.status==="offen") h+='<textarea placeholder="Kommentar (bei Ablehnung Pflicht)"></textarea>'+
       '<div class="abtns"><button type="button" class="b-no" data-act="abgelehnt">Ablehnen</button><button type="button" class="b-ok" data-act="bewilligt">Bewilligen</button></div>';
+    if(mode==="gl"&&a.status==="bewilligt") h+='<div class="am">Dispo: '+(a.dispo?'✓ eingetragen '+esc(a.dispo):'<b>noch nicht eingetragen</b>')+'</div>'+
+      (a.dispo?'':'<div class="abtns"><button type="button" class="b-ok" data-act="ein">✓ Im Dispo eingetragen</button></div>');
+    if(mode==="gl"&&a.status==="storniert"&&a.dispo) h+='<div class="am">Dispo: '+(a.dispoWeg?'✓ gelöscht '+esc(a.dispoWeg):'<b>noch im Dispo – löschen</b>')+'</div>'+
+      (a.dispoWeg?'':'<div class="abtns"><button type="button" class="b-no" data-act="weg">✓ Aus Dispo gelöscht</button></div>');
     if(mode==="gl"&&a.status==="bewilligt") h+='<div class="sbox"><div class="abtns"><button type="button" class="b-soft" data-act="storno-open">Stornieren …</button></div></div>';
     if(mode==="me"&&a.status==="offen") h+='<div class="abtns"><button type="button" class="b-soft" data-act="zurueck">Zurückziehen</button></div>';
     return h+'</div>';
@@ -1161,12 +1165,13 @@
   function dispoClick(e){
     var b=e.target.closest?e.target.closest("button[data-act=ein],button[data-act=weg]"):null; if(!b) return;
     var item=b.closest(".aitem"), id=item.getAttribute("data-id"); b.disabled=true; b.textContent="Wird gespeichert …";
-    google.script.run.withSuccessHandler(function(){ loadDispo(); loadBewilligt(); })
-      .withFailureHandler(function(err){ b.disabled=false; showErr(err&&err.message?err.message:String(err)); loadDispo(); })
+    google.script.run.withSuccessHandler(function(){ loadFreigabe(); })
+      .withFailureHandler(function(err){ b.disabled=false; showErr(err&&err.message?err.message:String(err)); loadFreigabe(); })
       .setDispo(CURRENT.name,CURRENT.pinValue||"",id,b.getAttribute("data-act"));
   }
   $("frDispo").addEventListener("click",dispoClick);
   $("frBewilligt").addEventListener("click",dispoClick);
+  $("frErledigt").addEventListener("click",dispoClick);
   $("frBewilligt").addEventListener("click",stornoClick);
   $("frErledigt").addEventListener("click",stornoClick);
   $("pinBack").addEventListener("click",function(){ PENDING=null; showName(); });
