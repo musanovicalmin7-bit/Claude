@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Wochenrapport-App installieren</title>
+<style>
+  @page{ size:A4; margin:14mm; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{ font:12pt/1.45 Helvetica,Arial,sans-serif; color:#1C2430; }
+  .page{ page-break-after:always; }
+  .page:last-child{ page-break-after:auto; }
+
+  header{ border-bottom:4px solid #F7B500; padding-bottom:8px; margin-bottom:6mm; }
+  h1{ font-size:20pt; }
+  h1 small{ font-size:11pt; font-weight:400; color:#5A6676; display:block; margin-top:2px; }
+  .os{ display:inline-block; background:#F7B500; color:#1C2430; font-size:13pt; font-weight:700;
+    padding:4px 14px; border-radius:6px; margin-bottom:5mm; }
+
+  .linkbox{ background:#FFF8E1; border:2px solid #F7B500; border-radius:8px; padding:8px 12px;
+    margin-bottom:6mm; font-size:11pt; }
+  .linkbox b{ color:#1C2430; }
+
+  .steps{ display:flex; gap:6mm; }
+  .step{ flex:1; }
+  .stepnr{ display:flex; align-items:center; gap:6px; margin-bottom:3mm; }
+  .stepnr .n{ width:24px; height:24px; border-radius:50%; background:#F7B500; color:#1C2430;
+    font-weight:700; text-align:center; line-height:24px; font-size:12pt; flex:0 0 auto; }
+  .stepnr .t{ font-size:10.5pt; font-weight:700; line-height:1.25; }
+
+  /* Handy-Zeichnung */
+  .phone{ border:3px solid #1C2430; border-radius:16px; padding:8px 6px; height:78mm;
+    position:relative; background:#fff; overflow:hidden; }
+  .bar{ height:8mm; background:#F4F6F8; border-radius:6px; display:flex; align-items:center;
+    padding:0 6px; font-size:7.5pt; color:#5A6676; gap:4px; margin-bottom:4px; }
+  .bar .dots{ margin-left:auto; font-weight:700; font-size:11pt; color:#1C2430; }
+  .appmock{ font-size:8pt; color:#8a94a3; text-align:center; padding-top:4mm; }
+  .appmock b{ display:block; color:#1C2430; font-size:9.5pt; border-bottom:2px solid #F7B500;
+    padding-bottom:2px; margin:0 8px 4px; }
+
+  .menu{ position:absolute; right:4px; top:12mm; width:80%; background:#fff;
+    border:1px solid #cfd6dd; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.18);
+    font-size:8.5pt; }
+  .menu div{ padding:5px 9px; border-bottom:1px solid #f0f2f5; color:#5A6676; }
+  .menu div:last-child{ border-bottom:0; }
+  .menu .hl{ background:#FFE28A; color:#1C2430; font-weight:700; border-radius:4px; }
+
+  .sheet{ position:absolute; left:4px; right:4px; bottom:4px; background:#fff;
+    border:1px solid #cfd6dd; border-radius:10px 10px 6px 6px;
+    box-shadow:0 -4px 12px rgba(0,0,0,.15); font-size:8.5pt; }
+  .sheet .grab{ width:34px; height:4px; background:#cfd6dd; border-radius:2px; margin:4px auto; }
+  .sheet div.row{ padding:5px 9px; border-bottom:1px solid #f0f2f5; color:#5A6676; }
+  .sheet .hl{ background:#FFE28A; color:#1C2430; font-weight:700; border-radius:4px; }
+
+  .homescreen{ display:grid; grid-template-columns:repeat(3,1fr); gap:5mm; padding:5mm 3mm; }
+  .icon{ text-align:center; font-size:7pt; color:#5A6676; }
+  .icon .sq{ width:11mm; height:11mm; border-radius:24%; background:#e6e9ee; margin:0 auto 1.5mm; }
+  .icon.new .sq{ background:#F7B500; display:flex; align-items:center; justify-content:center;
+    color:#1C2430; font-size:12pt; font-weight:700; }
+  .icon.new{ color:#1C2430; font-weight:700; }
+
+  .tip{ margin-top:5mm; background:#E7F3EC; border-left:4px solid #2E7D51; padding:6px 10px;
+    font-size:10pt; border-radius:0 6px 6px 0; }
+  .hint{ margin-top:3mm; font-size:9.5pt; color:#5A6676; }
+</style>
+</head>
+<body>
+
+<!-- ================= ANDROID ================= -->
+<div class="page">
+  <header>
+    <h1>Wochenrapport-App aufs Handy
+      <small>Einmal einrichten, danach wie eine normale App antippen. Dauert 1 Minute.</small></h1>
+  </header>
+
+  <div class="os">🤖 Android (Samsung, Xiaomi usw., mit Chrome)</div>
+
+  <div class="linkbox">👉 <b>Link öffnen,</b> den du per WhatsApp/SMS erhalten hast
+    (beginnt mit <b>script.google.com</b>…)</div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="stepnr"><span class="n">1</span><span class="t">Link in Chrome öffnen,<br>oben rechts <b>⋮</b> antippen</span></div>
+      <div class="phone">
+        <div class="bar">🔒 script.google.com…<span class="dots">⋮</span></div>
+        <div class="appmock"><b>Wochenrapport</b>Wer bist du?<br>[ Name tippen … ]</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="stepnr"><span class="n">2</span><span class="t">Im Menü:<br>„Zum Startbildschirm<br>hinzufügen" → <b>Hinzufügen</b></span></div>
+      <div class="phone">
+        <div class="bar">🔒 script.google.com…<span class="dots">⋮</span></div>
+        <div class="menu">
+          <div>➕ Neuer Tab</div>
+          <div>⭐ Lesezeichen</div>
+          <div>⬇️ Herunterladen</div>
+          <div class="hl">📲 Zum Startbildschirm hinzufügen</div>
+          <div>🖥️ Desktopwebsite</div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="stepnr"><span class="n">3</span><span class="t">Fertig! Icon liegt auf dem<br>Startbildschirm</span></div>
+      <div class="phone">
+        <div class="homescreen">
+          <div class="icon"><div class="sq"></div>Fotos</div>
+          <div class="icon"><div class="sq"></div>WhatsApp</div>
+          <div class="icon"><div class="sq"></div>Kamera</div>
+          <div class="icon"><div class="sq"></div>Telefon</div>
+          <div class="icon new"><div class="sq">🕒</div>Wochen-rapport</div>
+          <div class="icon"><div class="sq"></div>Maps</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip">✅ <b>Ab jetzt:</b> Icon antippen → Name wählen → Auftrag + Tage antippen →
+    unterschreiben → <b>Woche abschicken</b>. Jeden Freitag, dauert 2 Minuten.</div>
+  <div class="hint">Falls „Zum Startbildschirm hinzufügen" nicht erscheint: Browser auf Chrome wechseln
+    oder im Menü unter „Teilen" nachsehen. Bei Fragen: Büro fragen.</div>
+</div>
+
+<!-- ================= IPHONE ================= -->
+<div class="page">
+  <header>
+    <h1>Wochenrapport-App aufs iPhone
+      <small>Einmal einrichten, danach wie eine normale App antippen. Dauert 1 Minute.</small></h1>
+  </header>
+
+  <div class="os">🍎 iPhone / iPad (mit Safari)</div>
+
+  <div class="linkbox">👉 <b>Link öffnen,</b> den du per WhatsApp/SMS erhalten hast
+    (beginnt mit <b>script.google.com</b>…). Wichtig: in <b>Safari</b> öffnen</div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="stepnr"><span class="n">1</span><span class="t">Link in Safari öffnen,<br>unten <b>Teilen-Symbol</b> ⬆️ antippen</span></div>
+      <div class="phone">
+        <div class="appmock" style="padding-top:8mm"><b>Wochenrapport</b>Wer bist du?<br>[ Name tippen … ]</div>
+        <div class="sheet" style="bottom:4px">
+          <div class="row" style="text-align:center;border:0;font-size:12pt">⬆️</div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="stepnr"><span class="n">2</span><span class="t">Nach unten scrollen:<br>„Zum Home-Bildschirm" → <b>Hinzufügen</b></span></div>
+      <div class="phone">
+        <div class="sheet" style="top:10mm;bottom:4px">
+          <div class="grab"></div>
+          <div class="row">📋 Kopieren</div>
+          <div class="row">⭐ Zu Favoriten</div>
+          <div class="row">🔍 Auf Seite suchen</div>
+          <div class="row hl">➕ Zum Home-Bildschirm</div>
+          <div class="row">📄 Als PDF sichern</div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="stepnr"><span class="n">3</span><span class="t">Fertig! Icon liegt auf dem<br>Home-Bildschirm</span></div>
+      <div class="phone">
+        <div class="homescreen">
+          <div class="icon"><div class="sq"></div>Fotos</div>
+          <div class="icon"><div class="sq"></div>WhatsApp</div>
+          <div class="icon"><div class="sq"></div>Kamera</div>
+          <div class="icon"><div class="sq"></div>Telefon</div>
+          <div class="icon new"><div class="sq">🕒</div>Wochen-rapport</div>
+          <div class="icon"><div class="sq"></div>Karten</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip">✅ <b>Ab jetzt:</b> Icon antippen → Name wählen → Auftrag + Tage antippen →
+    unterschreiben → <b>Woche abschicken</b>. Jeden Freitag, dauert 2 Minuten.</div>
+  <div class="hint">Wichtig: Das funktioniert nur in <b>Safari</b>, nicht im Chrome- oder
+    WhatsApp-Browser. Link dazu einfach lang drücken → „In Safari öffnen". Bei Fragen: Büro fragen.</div>
+</div>
+
+</body>
+</html>
