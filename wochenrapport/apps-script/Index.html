@@ -958,6 +958,7 @@
     if(mode==="gl"&&a.ueberschneidung&&a.ueberschneidung.length) h+='<div class="ovl">Gleichzeitig abwesend: '+a.ueberschneidung.map(esc).join(", ")+'</div>';
     if(mode==="gl"&&a.status==="offen") h+='<textarea placeholder="Kommentar (bei Ablehnung Pflicht)"></textarea>'+
       '<div class="abtns"><button type="button" class="b-no" data-act="abgelehnt">Ablehnen</button><button type="button" class="b-ok" data-act="bewilligt">Bewilligen</button></div>';
+    if(mode==="gl"&&a.status==="bewilligt") h+='<div class="sbox"><div class="abtns"><button type="button" class="b-soft" data-act="storno-open">Stornieren …</button></div></div>';
     if(mode==="me"&&a.status==="offen") h+='<div class="abtns"><button type="button" class="b-soft" data-act="zurueck">Zurückziehen</button></div>';
     return h+'</div>';
   }
@@ -1113,13 +1114,15 @@
       .entscheidAntrag(CURRENT.name,CURRENT.pinValue||"",id,act,kom);
   });
   $("frNurFerien").addEventListener("change",renderBewilligt);
-  $("frBewilligt").addEventListener("click",function(e){
-    var b=e.target.closest?e.target.closest("button[data-act]"):null; if(!b) return;
+  function stornoClick(e){
+    var b=e.target.closest?e.target.closest("button[data-act^=storno]"):null; if(!b) return;
     var item=b.closest(".aitem"), id=item.getAttribute("data-id"), act=b.getAttribute("data-act"), box=item.querySelector(".sbox");
-    if(act==="storno-open"){ box.innerHTML='<textarea placeholder="Grund (Pflicht), z. B. verschoben auf 07.–14.12."></textarea>'+
+    if(act==="storno-open"){ var vorbei=(BEW.filter(function(x){ return x.id===id; })[0]||{}).bis; vorbei=!vorbei;
+      box.innerHTML=(vorbei?'<div class="am" style="color:var(--warn)">Bereits vorbei oder als ausgebucht markiert – prüfen, ob die Tage schon in Messerli gebucht sind (dort von Hand korrigieren).</div>':'')+
+      '<textarea placeholder="Grund (Pflicht), z. B. verschoben auf 07.–14.12."></textarea>'+
       '<div class="abtns"><button type="button" class="b-soft" data-act="storno-cancel">Abbrechen</button><button type="button" class="b-no" data-act="storno">Stornieren</button></div>';
       box.querySelector("textarea").focus(); return; }
-    if(act==="storno-cancel"){ renderBewilligt(); return; }
+    if(act==="storno-cancel"){ loadFreigabe(); return; }
     if(act==="storno"){
       var kom=box.querySelector("textarea").value||"";
       if(!kom.trim()){ showErr("Bitte beim Stornieren kurz begründen."); return; }
@@ -1128,7 +1131,9 @@
         .withFailureHandler(function(err){ box.querySelectorAll("button").forEach(function(x){ x.disabled=false; }); showErr(err&&err.message?err.message:String(err)); })
         .stornierenAntrag(CURRENT.name,CURRENT.pinValue||"",id,kom);
     }
-  });
+  }
+  $("frBewilligt").addEventListener("click",stornoClick);
+  $("frErledigt").addEventListener("click",stornoClick);
   $("pinBack").addEventListener("click",function(){ PENDING=null; showName(); });
   $("pinOk").addEventListener("click",submitPin);
   $("pinInput").addEventListener("keydown",function(e){ if(e.key==="Enter") submitPin(); });
