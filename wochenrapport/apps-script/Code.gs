@@ -1491,19 +1491,19 @@ function dispoText_(v) { return v instanceof Date ? fmtChDate_(v) : trim_(v); }
 
 /**
  * Was im Messerli-Dispo / Outlook noch zu tun ist:
- *  neu      = bewilligt, endet heute oder später, Spalte U "Im Dispo eingetragen" leer
+ *  neu      = alle bewilligten (auch vergangene), Spalte U "Im Dispo eingetragen" leer
  *  loeschen = storniert, war eingetragen (U gefüllt), Spalte V "Aus Dispo gelöscht" leer
  */
 function getDispoListe(name, pin) {
   var chk = requirePin_(name, pin);
   if (!chk.gl) throw new Error('Keine Berechtigung (nur GL).');
-  var heute = isoDate_(new Date()), neu = [], loeschen = [];
+  var neu = [], loeschen = [];
   antragRows_().forEach(function (r) {
     var st = String(r.v[A.STATUS]), ein = dispoText_(r.v[A.DISPO]), weg = dispoText_(r.v[A.DISPO_WEG]);
     var a = antragObj_(r);
     var o = { id: a.id, ma: a.ma, typ: a.typ, art: a.art, von: a.von, bis: a.bis, tage: a.tage, halb: a.halb,
               bem: a.bem, entVon: a.entVon, kommentar: a.kommentar, dispo: ein };
-    if (st === 'bewilligt' && !ein && a.bis >= heute) neu.push(o);
+    if (st === 'bewilligt' && !ein) neu.push(o);
     else if (st === 'storniert' && ein && !weg) loeschen.push(o);
   });
   function sort(x, y) { return x.von < y.von ? -1 : x.von > y.von ? 1 : (x.ma < y.ma ? -1 : 1); }
