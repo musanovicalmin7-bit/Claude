@@ -240,7 +240,7 @@
   <!-- Schritt 1: Name (nur beim ersten Mal) -->
   <section id="nameScreen" style="display:none">
     <h2>Wer bist du?</h2>
-    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.16 · Ferienanträge mit Freigabe</div>
+    <div style="font-size:11px;color:#8a94a3;margin:-6px 0 8px">Version 5.17 · Ferienanträge mit Freigabe</div>
     <input id="nameSearch" placeholder="Name tippen …" autocomplete="off">
     <div id="nameList"></div>
   </section>
@@ -1047,6 +1047,7 @@
         '<div>'+(a.typ==="Ferien"?"Ferien":esc(a.art))+' · '+zeit+' · <b>'+fmtH(a.tage)+'</b> Tag'+(a.tage===1?'':'e')+'</div>'+
         (a.bem?'<div class="am">Bemerkung: '+esc(a.bem)+'</div>':'')+(a.entVon?'<div class="am">bewilligt von '+esc(a.entVon)+'</div>':'')+sn+
         '<div class="am">Dispo: '+(a.dispo?'✓ eingetragen '+esc(a.dispo):'<b>noch nicht eingetragen</b>')+'</div>'+
+        (a.dispo?'':'<div class="abtns"><button type="button" class="b-ok" data-act="ein">✓ Im Dispo eingetragen</button></div>')+
         '<div class="sbox"><div class="abtns"><button type="button" class="b-soft" data-act="storno-open">Stornieren …</button></div></div></div>';
     }).join(""):'<div class="acempty">Keine bewilligten Abwesenheiten ab heute.</div>';
   }
@@ -1157,13 +1158,15 @@
         .stornierenAntrag(CURRENT.name,CURRENT.pinValue||"",id,kom);
     }
   }
-  $("frDispo").addEventListener("click",function(e){
-    var b=e.target.closest?e.target.closest("button[data-act]"):null; if(!b) return;
+  function dispoClick(e){
+    var b=e.target.closest?e.target.closest("button[data-act=ein],button[data-act=weg]"):null; if(!b) return;
     var item=b.closest(".aitem"), id=item.getAttribute("data-id"); b.disabled=true; b.textContent="Wird gespeichert …";
     google.script.run.withSuccessHandler(function(){ loadDispo(); loadBewilligt(); })
       .withFailureHandler(function(err){ b.disabled=false; showErr(err&&err.message?err.message:String(err)); loadDispo(); })
       .setDispo(CURRENT.name,CURRENT.pinValue||"",id,b.getAttribute("data-act"));
-  });
+  }
+  $("frDispo").addEventListener("click",dispoClick);
+  $("frBewilligt").addEventListener("click",dispoClick);
   $("frBewilligt").addEventListener("click",stornoClick);
   $("frErledigt").addEventListener("click",stornoClick);
   $("pinBack").addEventListener("click",function(){ PENDING=null; showName(); });
