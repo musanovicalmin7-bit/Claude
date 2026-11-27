@@ -92,6 +92,7 @@ function onOpen() {
     .addItem('Reiter einrichten', 'ensureSheets_')
     .addItem('Kontrolle aktualisieren', 'updateKontrolle')
     .addItem('Messerli-Export erstellen …', 'exportMesserli')
+    .addItem('Ferienübersicht erstellen', 'erstelleFerienuebersicht')
     .addSeparator()
     .addItem('Erinnerung offene Anträge einrichten (täglich)', 'setupErinnerung')
     .addItem('Test: Antrag-Mail an GL senden', 'testAntragMail')
@@ -1160,6 +1161,102 @@ function getFreigabeListe(name, pin) {
       var am = r.v[A.ENT_AM]; return r.v[A.STATUS] !== 'offen' && am instanceof Date && am >= grenze; })
     .map(antragObj_).reverse().slice(0, 30);
   return { offen: offen, erledigt: erledigt };
+}
+
+/* ================= Ferienübersicht (Menü) ================= */
+var SHEET_FERIENPLAN = 'Ferienübersicht';
+
+/** Arbeitstage laut Pensum (ohne Feiertage) eines Antrags, aufgeteilt nach Jahr; nur Tage nach "nachIso". */
+function antragTageProJahr_(a, pens, nachIso) {
+  var d = isoToDate_(a.von), end = isoToDate_(a.bis), proJahr = {}, total = 0, feiern = {};
+  if (!d || !end) return {};
+  for (; d <= end; d.setDate(d.getDate() + 1)) {
+    var y = d.getFullYear(); if (!feiern[y]) feiern[y] = feiertage_(y);
+    if (pens.tage.indexOf(d.getDay()) < 0 || feiern[y].indexOf(isoDate_(d)) >= 0) continue;
+    total++;
+    if (nachIso && isoDate_(d) <= nachIso) continue;
+    proJahr[y] = (proJahr[y] || 0) + 1;
+  }
+  // Auf die vom Mitarbeiter eingetragene Anzahl Tage skalieren (halbe Tage, abweichende Zählung).
+  var f = total > 0 && a.tage > 0 ? a.tage / total : 1;
+  Object.keys(proJahr).forEach(function (y) { proJahr[y] = Math.round(proJahr[y] * f * 100) / 100; });
+  return proJahr;
+}
+
+/**
+ * Menü "Ferienübersicht erstellen": Reiter mit
+ *  1) Saldo pro Person: Stand Messerli, bewilligte (noch nicht gebuchte) Ferien dieses und nächstes Jahr, Saldo Ende Jahr
+ *  2) Liste aller bewilligten Ferien ab heute mit Überschneidungen.
+ */
+function erstelleFerienuebersicht() {
+  var ss = ss_(), mit = readMitarbeiter_(), salden = saldenMap_(), rows = antragRows_();
+  var heute = isoDate_(new Date()), Y = new Date().getFullYear(), Y1 = Y + 1;
+  var ferien = rows.filter(function (r) {
+    var aus = r.v[A.AUSGEBUCHT];
+    return r.v[A.STATUS] === 'bewilligt' && String(r.v[A.TYP]) === 'Ferien' && !(aus === true || /^(ja|x|true)$/i.test(String(aus).trim()));
+  }).map(antragObj_);
+
+  // 1) pro Person
+  var kopf = ['Nr.', 'Mitarbeiter', 'Tagessoll (h)', 'Ferien-Saldo (h)', 'Stand',
+              'Bewilligt Rest ' + Y + ' (Tage)', 'Saldo Ende ' + Y + ' (h)', 'Saldo Ende ' + Y + ' (Tage)',
+              'Anspruch ' + Y1 + ' (h)', 'Bewilligt ' + Y1 + ' (Tage)', 'Saldo nach Plan ' + Y1 + ' (h)'];
+  var tab = [], namen = Object.keys(mit).sort();
+  namen.forEach(function (k) {
+    var rec = mit[k], s = salden['#' + (rec.nr || '')] || salden['n:' + k];
+    if (!s || s.ferien == null) return;
+    var pens = pensum_(rec), tagH = pens.stunden, nach = s.stand || '', tY = 0, tY1 = 0;
+    ferien.forEach(function (a) {
+      if (a.ma.trim().toLowerCase() !== k) return;
+      var pj = antragTageProJahr_(a, pens, nach);
+      tY += pj[Y] || 0; tY1 += pj[Y1] || 0;
+    });
+    var endeY = s.ferien - tY * tagH, ansp = ferienAnspruch_(rec), planY1 = endeY + ansp - tY1 * tagH;
+    tab.push([rec.nr, rec.name, tagH, s.ferien, s.stand ? chFromIso_(s.stand) : '', tY || '',
+              Math.round(endeY * 100) / 100, Math.round(endeY / tagH * 10) / 10, ansp, tY1 || '', Math.round(planY1 * 100) / 100]);
+  });
+
+  // 2) Liste bewilligter Ferien ab heute mit Überschneidungen
+  var liste = ferien.filter(function (a) { return a.bis >= heute; })
+    .sort(function (a, b) { return a.von < b.von ? -1 : a.von > b.von ? 1 : (a.ma < b.ma ? -1 : 1); });
+  var kopf2 = ['Von', 'Bis', 'Mitarbeiter', 'Tage', 'Bewilligt von', 'Bemerkung', 'Gleichzeitig abwesend'];
+  var tab2 = liste.map(function (a) {
+    var ov = liste.filter(function (b) { return b.id !== a.id && b.ma !== a.ma && b.von <= a.bis && b.bis >= a.von; })
+      .map(function (b) { return b.ma.split(',')[0]; });
+    ov = ov.filter(function (x, i) { return ov.indexOf(x) === i; });
+    return [chFromIso_(a.von), chFromIso_(a.bis), a.ma, a.tage, a.entVon, a.bem, ov.join(', ')];
+  });
+
+  var sh = ss.getSheetByName(SHEET_FERIENPLAN) || ss.insertSheet(SHEET_FERIENPLAN);
+  sh.clear();
+  var r = 1;
+  sh.getRange(r, 1).setValue('Ferienübersicht – erstellt ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm') +
+    ' · Saldo laut Reiter Salden, bewilligte Ferien nach dem Saldo-Stand und nicht ausgebucht · Anspruch ' + Y1 + ' = Ferientage (Spalte J, leer 27) × 8 h × Pensum')
+    .setFontStyle('italic');
+  r = 3;
+  sh.getRange(r, 1, 1, kopf.length).setValues([kopf]).setFontWeight('bold').setBackground('#EDF3F8').setWrap(true);
+  if (tab.length) {
+    sh.getRange(r + 1, 1, tab.length, kopf.length).setValues(tab);
+    sh.getRange(r + 1, 3, tab.length, 9).setNumberFormat('0.00');
+    sh.getRange(r + 1, 6, tab.length, 1).setNumberFormat('0.0');
+    sh.getRange(r + 1, 8, tab.length, 1).setNumberFormat('0.0');
+    sh.getRange(r + 1, 10, tab.length, 1).setNumberFormat('0.0');
+    var fg = tab.map(function (row) { return row.map(function (v, i) { return (i >= 3 && typeof v === 'number' && v < 0) ? '#B5551D' : '#000000'; }); });
+    sh.getRange(r + 1, 1, tab.length, kopf.length).setFontColors(fg);
+  }
+  r = r + tab.length + 3;
+  sh.getRange(r, 1).setValue('Bewilligte Ferien ab heute (' + liste.length + ')').setFontWeight('bold');
+  r++;
+  sh.getRange(r, 1, 1, kopf2.length).setValues([kopf2]).setFontWeight('bold').setBackground('#EDF3F8');
+  if (tab2.length) {
+    sh.getRange(r + 1, 1, tab2.length, kopf2.length).setValues(tab2);
+    var bg = tab2.map(function (row) { return row.map(function () { return row[6] ? '#FFF2CC' : null; }); });
+    sh.getRange(r + 1, 1, tab2.length, kopf2.length).setBackgrounds(bg);
+  }
+  sh.setFrozenRows(3);
+  sh.setColumnWidth(2, 190); for (var c = 3; c <= 11; c++) sh.setColumnWidth(c, 105);
+  sh.setColumnWidth(6, 120); sh.setColumnWidth(7, 160);
+  ss.setActiveSheet(sh);
+  try { SpreadsheetApp.getUi().alert('Ferienübersicht erstellt: ' + tab.length + ' Personen, ' + liste.length + ' bewilligte Ferien ab heute.'); } catch (e) {}
 }
 
 /** GL-Übersicht: alle bewilligten Abwesenheiten, die heute oder später enden (nicht ausgebucht), nach Datum. */

@@ -95,6 +95,9 @@ Ersetzt die Papierformulare. Ablauf:
    ausgebuchten Ferien/Absenzen nach Datum, mit Feriensaldo danach. Die GL kann dort einen bewilligten Antrag
    **stornieren** (Grund Pflicht, Mail an den Mitarbeiter; Status `storniert`, fällt aus Vorbefüllung und Export).
    Mitarbeitende sehen bei ihrem Saldo die eigenen bewilligten, noch nicht gebuchten Ferien und den Saldo danach.
+   Ab 5.13: Menü **Wochenrapport → Ferienübersicht erstellen** schreibt den Reiter `Ferienübersicht`: pro Person
+   Saldo (Reiter Salden), bewilligte Rest-Ferien dieses Jahres, Saldo Ende Jahr, Anspruch und bewilligte Ferien nächstes
+   Jahr, Saldo nach Plan; darunter alle bewilligten Ferien ab heute mit Überschneidungen (gelb).
    Tagessoll und Arbeitstage stehen im Reiter `Mitarbeiter`, Spalte G (leer = 8 h) und H (leer = Mo–Fr,
    z. B. „Mo–Do“ oder „Di, Mi, Fr“).
    Spalte I „Keine Zeiterfassung“ (x) blendet die Person im Reiter **Kontrolle** aus (z. B. ohne Rapportpflicht).
