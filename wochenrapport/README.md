@@ -89,6 +89,8 @@ Ersetzt die Papierformulare. Ablauf:
 5. Bewilligte Tage erscheinen automatisch im Wochenrapport, wenn die Woche noch leer ist
    (Ferien Bezug mit dem Tagessoll der Person, halber Tag die Hälfte, halber Tag ab ÜZ-Konto als Kompensation).
    Ab 5.11 rechnen Saldo-Anzeige und Freigabe Tage ↔ Stunden mit diesem Tagessoll (z. B. 60 % = 4.8 h/Tag).
+   Ab 5.12 zählt die Freigabe bei Anträgen im Folgejahr den Ferienanspruch dieses Jahres dazu (Spalte J
+   „Ferientage pro Jahr“, leer = 27 Tage nach GAV; Stunden = Tage × 8 h × Pensum).
    Tagessoll und Arbeitstage stehen im Reiter `Mitarbeiter`, Spalte G (leer = 8 h) und H (leer = Mo–Fr,
    z. B. „Mo–Do“ oder „Di, Mi, Fr“).
    Spalte I „Keine Zeiterfassung“ (x) blendet die Person im Reiter **Kontrolle** aus (z. B. ohne Rapportpflicht).

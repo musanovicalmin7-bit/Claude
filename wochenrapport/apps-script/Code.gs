@@ -126,7 +126,8 @@ function ensureSheets_() {
                    'Rolle (GL = darf Anträge bewilligen, braucht PIN; Salden = erhält Detail-Anfragen zu Salden; App = erhält Problem-Meldungen; mehrere mit Komma)',
                    'Soll pro Arbeitstag (h, leer = 8; z. B. 7.2 oder 6.4 bei Teilzeit)',
                    'Arbeitstage (leer = Mo–Fr; z. B. Mo–Do oder Di, Mi, Fr)',
-                   'Keine Zeiterfassung (x = nicht im Reiter Kontrolle)'];
+                   'Keine Zeiterfassung (x = nicht im Reiter Kontrolle)',
+                   'Ferientage pro Jahr (leer = 27 nach GAV; z. B. 30 ab 50 Jahren)'];
   var mit = ss.getSheetByName(SHEET_MITARBEITER);
   if (!mit) mit = ss.insertSheet(SHEET_MITARBEITER);
   mit.getRange(1, 1, 1, mitHeader.length).setValues([mitHeader]).setFontWeight('bold');
@@ -1103,7 +1104,15 @@ function saldoFuer_(salden, ma, alle, ohneId) {
     if (!s.stand || a.bis > s.stand) bewilligt += a.tage;
   });
   return { ferien: s.ferien, ueberstd: s.ueberstd, ueberstdB: s.ueberstdB, ueberzeit: s.ueberzeit, stand: s.stand ? chFromIso_(s.stand) : '',
-           bewilligtTage: bewilligt, hinweis: s.hinweis || '', tagH: pensum_(rec).stunden };   // Tagessoll (Teilzeit) für die Umrechnung h ↔ Tage
+           bewilligtTage: bewilligt, hinweis: s.hinweis || '', tagH: pensum_(rec).stunden,   // Tagessoll (Teilzeit) für die Umrechnung h ↔ Tage
+           standJahr: s.stand ? Number(String(s.stand).slice(0, 4)) : new Date().getFullYear(), anspruchJahr: ferienAnspruch_(rec) };
+}
+/** Ferienanspruch pro Kalenderjahr in Stunden: Tage (Spalte J, leer = 27 nach GAV Art. 29.1) × 8 h × Pensum (Wochensoll / 40 h). */
+function ferienAnspruch_(rec) {
+  var tage = Number(String((rec || {}).ferientage || '').replace(',', '.'));
+  if (!(tage > 0 && tage <= 40)) tage = 27;
+  var p = pensum_(rec);
+  return Math.round(tage * 8 * (p.stunden * p.tage.length / SOLL_STUNDEN) * 100) / 100;
 }
 
 /** Offenen Antrag zurückziehen (nur eigene; bewilligte nur über das Büro). */
@@ -1308,7 +1317,7 @@ function readMitarbeiter_() {
     var nr = trim_(v[i][0]), name = trim_(v[i][1]), kostenart = trim_(v[i][3]), pin = trim_(v[i][4]);
     if (name) map[name.toLowerCase()] = { nr: nr, name: name, email: trim_(v[i][2]), kostenart: kostenart,
                                           pin: pin, rolle: trim_(v[i][5]), tagSoll: trim_(v[i][6]), tagSollRaw: v[i][6], arbeitstage: trim_(v[i][7]),
-                                          keineZeit: /^(x|ja|true)$/i.test(trim_(v[i][8])) };
+                                          keineZeit: /^(x|ja|true)$/i.test(trim_(v[i][8])), ferientage: trim_(v[i][9]) };
   }
   return map;
 }
